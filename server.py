@@ -178,11 +178,13 @@ def handle(queue):
 				team_info = json.loads(zip_file.read('team_info.json').decode())
 				zip_file.extractall(temp_dir)
 
+			# count size of files
 			bytes_total = 0
 			for root, _, files in os.walk('.'):
 				for file in files:
 					if file not in ['team_info.json', team_info['decoder'], 'data.zip']:
 						bytes_total += os.stat(os.path.join(root, file)).st_size
+
 			if bytes_total > BYTES_TOTAL_MAX:
 				message = 'ERROR: Size of files exceeds maximum ({0} > {1}).'
 				message = message.format(bytes_total, BYTES_TOTAL_MAX)
@@ -235,8 +237,31 @@ def handle(queue):
 				shutil.rmtree(temp_dir, ignore_errors=True)
 				continue
 
+			if team_info['decoder'].lower().endswith('.zip'):
+				print('Extracting decoder...')
+				conn.send(b'Extracting decoder...\n')
+
+				# unzip decoder files
+				with ZipFile(team_info['decoder'], 'r') as zip_file:
+					zip_file.extractall(temp_dir)
+
+				if os.path.exists('decode.py') and not os.path.exists('decode'):
+					os.rename('decode.py', 'decode')
+
+				if not os.path.exists('decode'):
+					print('ERROR: Decoder executable \'decode\' not found.')
+					conn.send(b'ERROR: Decoder executable \'decode\' not found.\n')
+					conn.send(TERMINATE)
+					conn.close()
+					shutil.rmtree(temp_dir, ignore_errors=True)
+					continue
+			else:
+				os.rename(team_info['decoder'], 'decode')
+			os.chmod('decode', os.stat('decode').st_mode | stat.S_IEXEC)
+
 			# check password
 			password = db_get_password(db, team_info['name'])
+
 			if password is None:
 				db_create_team(db, team_info['name'], team_info['password'], team_info['email'])
 
@@ -247,9 +272,6 @@ def handle(queue):
 				conn.close()
 				shutil.rmtree(temp_dir, ignore_errors=True)
 				continue
-
-			os.rename(team_info['decoder'], 'decode')
-			os.chmod('decode', os.stat('decode').st_mode | stat.S_IEXEC)
 
 			# decode images
 			decoding_start = time.time()
