@@ -1,4 +1,5 @@
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from socketserver import ThreadingMixIn
 import json
 import sqlite3
 
@@ -25,6 +26,11 @@ def db_get_results(db):
 
 	return results
 
+
+class SimpleServer(ThreadingMixIn, HTTPServer):
+	pass
+
+
 class Handler(BaseHTTPRequestHandler):
 	def _set_headers(self):
 		self.send_response(200)
@@ -32,17 +38,30 @@ class Handler(BaseHTTPRequestHandler):
 		self.end_headers()
 
 	def do_GET(self):
-		db = sqlite3.connect(DBNAME)
+		if self.path == '/':
+			print('Connecting...')
+			db = sqlite3.connect(DBNAME)
 
-		results = db_get_results(db)
+			print('Fetching results...')
+			results = db_get_results(db)
 
-		self._set_headers()
-		self.wfile.write(b'window.leaderboard = ')
-		self.wfile.write(json.dumps(results).encode())
+			print('Sending headers...')
+			self._set_headers()
+
+			print('Sending content...')
+			self.wfile.write(b'window.leaderboard = ')
+			self.wfile.write(json.dumps(results).encode())
+
+			print('Closing connection...')
+			db.close()
+			print('Done.')
+		else:
+			self.send_error(404)
 
 	def do_HEAD(self):
 		self._set_headers()
 
+
 if __name__ == "__main__":
-	httpd = HTTPServer(('', 8000), Handler)
+	httpd = SimpleServer(('', 8000), Handler)
 	httpd.serve_forever()
