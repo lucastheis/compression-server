@@ -245,6 +245,9 @@ def handle(queue):
 				shutil.rmtree(temp_dir, ignore_errors=True)
 				continue
 
+			decoder_size = os.stat(team_info['decoder']).st_size  # bytes
+			decoder_hash = file_hash(team_info['decoder'])
+
 			if team_info['decoder'].lower().endswith('.zip'):
 				print('Extracting decoder...')
 				conn.send(b'Extracting decoder...\n')
@@ -293,8 +296,6 @@ def handle(queue):
 					shell=False)
 				proc.wait()
 			decoding_time = int((time.time() - decoding_start) * 1000.)  # ms
-			decoder_size = os.stat('decode').st_size  # bytes
-			decoder_hash = file_hash('decode')
 
 			# move image files out of subdirectories
 			for root, _, files in os.walk('.'):
