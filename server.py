@@ -34,7 +34,15 @@ IMAGE_PIXELS_TOTAL = sum(np.prod(Image.open(f).size) for f in IMAGE_FILES)
 BYTES_TOTAL_MAX = int(np.ceil(IMAGE_PIXELS_TOTAL * 0.15 / 8.) + .5)
 SUBMISSIONS_PATH = os.path.join(os.getcwd(), 'submissions')
 LOGS_PATH = os.path.join(os.getcwd(), 'logs')
-DECODE_CMD = ['docker', 'run', '--rm', '-v', '{temp_dir}:{temp_dir}', '-w', '{temp_dir}', 'clic2018/compression', './decode']
+DECODE_CMD = [
+	'docker', 'run',
+	'--rm',
+	'--memory', '4g',
+	'--cpus', '1',
+	'-v', '{temp_dir}:{temp_dir}',
+	'-w', '{temp_dir}',
+	'clic2018/compression',
+	'./decode']
 
 
 def db_setup():
