@@ -326,7 +326,10 @@ def handle(queue):
 				continue
 
 			print('Evaluating...')
-			conn.send(b'Evaluating...')
+			try:
+				conn.send(b'Evaluating...')
+			except:
+				pass
 
 			# evaluate decoded images
 			psnr, msssim = evaluate(conn)
@@ -344,16 +347,18 @@ def handle(queue):
 
 			print('Submission from team "{0}" successful...'.format(team_info['name']))
 
-			conn.send(b'\n')
-
-			conn.send(b'Submission successful...\n')
-			conn.send(b'\n')
-			conn.send('PSNR: {0:.4f}\n'.format(psnr).encode())
-			conn.send('MS-SSIM: {0:.4f}\n'.format(msssim).encode())
-			conn.send('Decoding time: {0} seconds\n'.format(decoding_time).encode())
-			conn.send(b'\n')
-			conn.send(format_results(db_get_results(db)).encode())
-			conn.send(b'\n')
+			try:
+				conn.send(b'\n')
+				conn.send(b'Submission successful...\n')
+				conn.send(b'\n')
+				conn.send('PSNR: {0:.4f}\n'.format(psnr).encode())
+				conn.send('MS-SSIM: {0:.4f}\n'.format(msssim).encode())
+				conn.send('Decoding time: {0} seconds\n'.format(decoding_time).encode())
+				conn.send(b'\n')
+				conn.send(format_results(db_get_results(db)).encode())
+				conn.send(b'\n')
+			except:
+				pass
 
 			shutil.move(zip_path, os.path.join(SUBMISSIONS_PATH, team_info['name'] + '.zip'))
 			shutil.rmtree(temp_dir, ignore_errors=True)
