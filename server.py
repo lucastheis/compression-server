@@ -95,7 +95,10 @@ def db_add_submission(db, name, addr, psnr, msssim, images_size, decoding_time, 
 
 def db_count_recent_submissions(db, name):
 	cursor = db.cursor()
-	cursor.execute('SELECT COUNT(*) AS "count" FROM submissions WHERE timestamp > DATETIME("now", "-1 day")')
+	cursor.execute('''
+	SELECT COUNT(*) AS "count"
+	FROM submissions
+	WHERE timestamp > DATETIME("now", "-1 day") AND name = "{0}"'''.format(name))
 	return cursor.fetchone()[0]
 
 
