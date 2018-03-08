@@ -140,12 +140,12 @@ def evaluate(conn):
 	connected = True
 
 	for image_file in IMAGE_FILES:
-		image0 = np.asarray(Image.open(image_file))
-		image1 = np.asarray(Image.open(os.path.basename(image_file)))
+		image0 = np.asarray(Image.open(image_file), dtype=np.float32)
+		image1 = np.asarray(Image.open(os.path.basename(image_file)), dtype=np.float32)
 
 		num_dims += image0.size
 
-		sqerror_values.append(np.sum(np.square(image1 - image0)))
+		sqerror_values.append(mse(image1, image0))
 		msssim_values.append(msssim(image0, image1))
 
 		try:
