@@ -22,7 +22,7 @@ import time
 
 PORT = 20000
 BUFFER_SIZE = 4096
-NUM_THREADS = 4  # number of workers evaluating submissions
+NUM_THREADS = 2  # number of workers evaluating submissions
 QUEUE_SIZE = 2  # number of additional submissions in queue
 TERMINATE = chr(0).encode()
 DBNAME = 'clic2018_validation.db'
@@ -37,8 +37,9 @@ LOGS_PATH = os.path.join(os.getcwd(), 'logs')
 DECODE_CMD = [
 	'docker', 'run',
 	'--rm',
-	'--memory', '4g',
-	'--cpus', '1',
+	'--memory', '8g',
+	'--memory-swap', '16g',
+	'--cpus', '2',
 	'-v', '{temp_dir}:{temp_dir}',
 	'-w', '{temp_dir}',
 	'clic2018/compression',
