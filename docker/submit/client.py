@@ -10,8 +10,8 @@ import re
 import socket
 import sys
 
-HOST = 'eval.compression.cc'
-PORT = 20000
+HOST = os.environ.get('EVAL_SERVER', 'eval.compression.cc')
+PORT = os.environ.get('EVAL_PORT', 20000)
 BUFFER_SIZE = 4096
 TERMINATE = chr(0).encode()
 
@@ -37,7 +37,7 @@ def main(args):
 		print('The password should be at least 8 characters long.')
 		return 1
 
-	print('Connecting...')
+	print('Connecting ({0}:{1})...'.format(HOST, PORT))
 
 	# connect to evaluation server
 	s = socket.socket()
@@ -81,9 +81,9 @@ def main(args):
 if __name__ == '__main__':
 	parser = ArgumentParser()
 	parser.add_argument('decoder',
-	        help='An executable decoder')
+		help='An executable decoder')
 	parser.add_argument('images', nargs='+',
-	        help='Compressed image files')
+		help='Compressed image files')
 	parser.add_argument('--name', '-n', required=True,
 		help='Your team\'s name')
 	parser.add_argument('--password', '-p', required=True,
