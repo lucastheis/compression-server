@@ -367,8 +367,8 @@ def handle(queue):
 			conn.send(TERMINATE)
 			conn.close()
 
-		except Exception as exception:
-			print(exception)
+		except:
+			print('ERROR: Some unexpected error occurred...')
 			try:
 				conn.send(b'ERROR: Some unexpected error occurred...\n')
 				conn.send(TERMINATE)
@@ -417,10 +417,12 @@ def main():
 
 		try:
 			queue.put((conn, addr[0]), block=True, timeout=2)
+			print('Queuing submission from {0} ({1})...'.format(addr[0], queue.qsize()))
 			conn.send(b'Submission queued...\n')
-			print('Queuing submission from {0}...'.format(addr[0]))
 		except Full:
+			print('Queue full...')
 			conn.send(b'Server busy, please try again later...\n')
+			conn.send(TERMINATE)
 			conn.close()
 
 
