@@ -359,7 +359,7 @@ def handle(queue):
 				conn.send(format_results(db_get_results(db)).encode())
 				conn.send(b'\n')
 			except:
-				pass
+				print('Connection to client lost...')
 
 			shutil.move(zip_path, os.path.join(SUBMISSIONS_PATH, team_info['name'] + '.zip'))
 			shutil.rmtree(temp_dir, ignore_errors=True)
@@ -416,14 +416,18 @@ def main():
 		conn, addr = server.accept()
 
 		try:
-			queue.put((conn, addr[0]), block=True, timeout=2)
-			print('Queuing submission from {0} ({1})...'.format(addr[0], queue.qsize()))
-			conn.send(b'Submission queued...\n')
-		except Full:
-			print('Queue full...')
-			conn.send(b'Server busy, please try again later...\n')
-			conn.send(TERMINATE)
-			conn.close()
+			try:
+				queue.put((conn, addr[0]), block=True, timeout=2)
+				print('Queuing submission from {0} ({1})...'.format(addr[0], queue.qsize()))
+				conn.send(b'Submission queued...\n')
+			except Full:
+				print('Queue full...')
+				conn.send(b'Server busy, please try again later...\n')
+				conn.send(TERMINATE)
+				conn.close()
+		except:
+			# make sure server doesn't die when conn.send() fails
+			pass
 
 
 if __name__ == '__main__':
