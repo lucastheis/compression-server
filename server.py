@@ -9,6 +9,7 @@ from queue import Full
 from tempfile import mkdtemp
 from zipfile import ZipFile
 import json
+import logging
 import numpy as np
 import os
 import re
@@ -32,6 +33,7 @@ IMAGE_DIR = '/images'
 IMAGE_FILES = glob(os.path.join(IMAGE_DIR, '*.png'))
 IMAGE_PIXELS_TOTAL = sum(np.prod(Image.open(f).size) for f in IMAGE_FILES)
 BYTES_TOTAL_MAX = int(np.ceil(IMAGE_PIXELS_TOTAL * 0.15 / 8.) + .5)
+EMAIL_REGEX = r'^[A-Za-z0-9\.\+_-]+@[A-Za-z0-9\._-]+\.[a-zA-Z]*$'
 SUBMISSIONS_PATH = os.path.join(os.getcwd(), 'submissions')
 LOGS_PATH = os.path.join(os.getcwd(), 'logs')
 DECODE_CMD = [
@@ -40,6 +42,7 @@ DECODE_CMD = [
 	'--memory', '8g',
 	'--memory-swap', '16g',
 	'--cpus', '2',
+	'--name', '{name}',
 	'-v', '{temp_dir}:{temp_dir}',
 	'-w', '{temp_dir}',
 	'clic2018/compression',
@@ -97,9 +100,9 @@ def db_add_submission(db, name, addr, psnr, msssim, images_size, decoding_time, 
 def db_count_recent_submissions(db, name):
 	cursor = db.cursor()
 	cursor.execute('''
-	SELECT COUNT(*) AS "count"
-	FROM submissions
-	WHERE timestamp > DATETIME("now", "-1 day") AND name = "{0}"'''.format(name))
+		SELECT COUNT(*) AS "count"
+		FROM submissions
+		WHERE timestamp > DATETIME("now", "-1 day") AND name = "{0}"'''.format(name))
 	return cursor.fetchone()[0]
 
 
@@ -149,12 +152,6 @@ def evaluate(conn):
 		sqerror_values.append(mse(image1, image0))
 		msssim_values.append(msssim(image0, image1))
 
-		try:
-			if connected:
-				conn.send(b'.')
-		except:
-			connected = False
-
 	return mse2psnr(np.sum(sqerror_values) / num_dims), np.mean(msssim_values)
 
 
@@ -164,19 +161,34 @@ def file_hash(file_path):
 		return sha256(handle.read()).hexdigest()
 
 
+def send_message(conn, message, log=True, terminate=False):
+	if log:
+		logging.getLogger(__name__).info(message)
+	try:
+		conn.send(message.encode('utf-8') + b'\n')
+
+		if terminate:
+			conn.send(TERMINATE)
+			conn.close()
+	except:
+		pass
+
+
 def handle(queue):
 	db = sqlite3.connect(DBNAME)
+
+	logger = logging.getLogger(__name__)
 
 	while True:
 		conn, addr = queue.get()
 
-		conn.send(b'Processing submission...\n')
-		print('Processing submission...')
+		send_message(conn, 'Processing submission...')
 
 		# change working directory to temporary directory
 		temp_dir = mkdtemp(dir=TMP_DIR)
-		print('Extracting files in {0}'.format(temp_dir))
 		os.chdir(temp_dir)
+
+		logger.info('Extracting files in {0}'.format(temp_dir))
 
 		try:
 			# receive zip archive
@@ -190,6 +202,15 @@ def handle(queue):
 				team_info = json.loads(zip_file.read('team_info.json').decode())
 				zip_file.extractall(temp_dir)
 
+		except:
+			send_message(conn, "ERROR: Unable to read data.", terminate=True)
+
+		def clean_up(message):
+			# send final message, terminate connection, remove temp dir
+			send_message(conn, message, terminate=True)
+			shutil.rmtree(temp_dir, ignore_errors=True)
+
+		try:
 			# count size of files
 			bytes_total = 0
 			for root, _, files in os.walk('.'):
@@ -198,63 +219,35 @@ def handle(queue):
 						bytes_total += os.stat(os.path.join(root, file)).st_size
 
 			if bytes_total > BYTES_TOTAL_MAX:
-				message = 'ERROR: Size of files exceeds maximum ({0} > {1}).'
-				message = message.format(bytes_total, BYTES_TOTAL_MAX)
-				print(message)
-				conn.send((message + '\n').encode())
-				conn.send(TERMINATE)
-				conn.close()
-				shutil.rmtree(temp_dir, ignore_errors=True)
+				clean_up('ERROR: Size of files exceeds maximum ({0} > {1}).'.format(bytes_total, BYTES_TOTAL_MAX))
 				continue
 
 			# perform some checks
 			if not os.path.exists(team_info['decoder']):
-				print('ERROR: Decoder not found.')
-				conn.send(b'ERROR: Decoder not found.\n')
-				conn.send(TERMINATE)
-				conn.close()
-				shutil.rmtree(temp_dir, ignore_errors=True)
+				clean_up('ERROR: Decoder not found.')
 				continue
 
 			if not team_info['name'].replace(' ', '').isalnum():
-				print('Invalid team name.')
-				conn.send(b'ERROR: The team name should only contain alphanumeric characters.\n')
-				conn.send(TERMINATE)
-				conn.close()
-				shutil.rmtree(temp_dir, ignore_errors=True)
+				clean_up('ERROR: The team name should only contain alphanumeric characters.')
 				continue
 
 			if len(team_info['name']) > 128:
-				print('Invalid team name.')
-				conn.send(b'ERROR: Team name longer than 128 characters.\n')
-				conn.send(TERMINATE)
-				conn.close()
-				shutil.rmtree(temp_dir, ignore_errors=True)
+				clean_up('ERROR: Team name longer than 128 characters.')
 				continue
 
-			if len(team_info['email']) > 128 or not re.match(r'^[A-Za-z0-9\.\+_-]+@[A-Za-z0-9\._-]+\.[a-zA-Z]*$', team_info['email']):
-				print('Invalid email address.')
-				conn.send(b'ERROR: Invalid email address.\n')
-				conn.send(TERMINATE)
-				conn.close()
-				shutil.rmtree(temp_dir, ignore_errors=True)
-				return 1
+			if len(team_info['email']) > 128 or not re.match(EMAIL_REGEX, team_info['email']):
+				clean_up('ERROR: Invalid email address.')
+				continue
 
 			if db_count_recent_submissions(db, team_info['name']) >= MAX_SUBMISSIONS_PER_DAY:
-				print('Team "{0}" reached submission limit.'.format(team_info['name']))
-				message = 'ERROR: Each team can only submit {0} times per day.\n'
-				conn.send(message.format(MAX_SUBMISSIONS_PER_DAY).encode())
-				conn.send(TERMINATE)
-				conn.close()
-				shutil.rmtree(temp_dir, ignore_errors=True)
+				clean_up('ERROR: Each team can only submit {0} times per day.'.format(MAX_SUBMISSIONS_PER_DAY))
 				continue
 
 			decoder_size = os.stat(team_info['decoder']).st_size  # bytes
 			decoder_hash = file_hash(team_info['decoder'])
 
 			if team_info['decoder'].lower().endswith('.zip'):
-				print('Extracting decoder...')
-				conn.send(b'Extracting decoder...\n')
+				send_message(conn, 'Extracting decoder...')
 
 				# unzip decoder files
 				with ZipFile(team_info['decoder'], 'r') as zip_file:
@@ -264,11 +257,7 @@ def handle(queue):
 					os.rename('decode.py', 'decode')
 
 				if not os.path.exists('decode'):
-					print('ERROR: Decoder executable \'decode\' not found.')
-					conn.send(b'ERROR: Decoder executable \'decode\' not found.\n')
-					conn.send(TERMINATE)
-					conn.close()
-					shutil.rmtree(temp_dir, ignore_errors=True)
+					clean_up('ERROR: Decoder executable \'decode\' not found.')
 					continue
 			else:
 				os.rename(team_info['decoder'], 'decode')
@@ -281,25 +270,24 @@ def handle(queue):
 				db_create_team(db, team_info['name'], team_info['password'], team_info['email'])
 
 			elif team_info['password'] != password:
-				print('Incorrect password.')
-				conn.send(b'ERROR: Incorrect password.\n')
-				conn.send(TERMINATE)
-				conn.close()
-				shutil.rmtree(temp_dir, ignore_errors=True)
+				clean_up('ERROR: Incorrect password.')
 				continue
 
 			# decode images
 			decoding_start = time.time()
-			print('Decoding images...')
-			conn.send(b'Decoding images...\n')
+			send_message(conn, 'Decoding images...')
 			with open(os.path.join(LOGS_PATH, team_info['name'] + '.log'), 'w') as stdout:
 				proc = subprocess.Popen(
-					[s.format(temp_dir=temp_dir) for s in DECODE_CMD],
+					[s.format(temp_dir=temp_dir, name=team_info['name']) for s in DECODE_CMD],
 					stdout=stdout,
 					stderr=stdout,
 					shell=False)
 				proc.wait()
 			decoding_time = int((time.time() - decoding_start) * 1000.)  # ms
+
+			if proc.returncode == 125:
+				clean_up('ERROR: Another submission by your team appears to still be running.')
+				continue
 
 			# move image files out of subdirectories
 			for root, _, files in os.walk('.'):
@@ -318,19 +306,13 @@ def handle(queue):
 				images_complete = True
 
 			if not images_complete:
-				message = 'ERROR: Missing image {0}.'.format(os.path.basename(image_file))
-				print(message)
-				conn.send((message + '\n').encode())
-				conn.send(TERMINATE)
-				conn.close()
-				shutil.rmtree(temp_dir, ignore_errors=True)
+				if proc.returncode == 1:
+					clean_up('ERROR: The decoder has failed.')
+				else:
+					clean_up('ERROR: Missing image {0}.'.format(os.path.basename(image_file)))
 				continue
 
-			print('Evaluating...')
-			try:
-				conn.send(b'Evaluating...')
-			except:
-				pass
+			send_message(conn, 'Evaluating...')
 
 			# evaluate decoded images
 			psnr, msssim = evaluate(conn)
@@ -346,43 +328,39 @@ def handle(queue):
 				decoder_size,
 				decoder_hash)
 
-			print('Submission from team "{0}" successful...'.format(team_info['name']))
+			logger.info('Submission from team "{0}" successful...'.format(team_info['name']))
 
-			try:
-				conn.send(b'\n')
-				conn.send(b'Submission successful...\n')
-				conn.send(b'\n')
-				conn.send('PSNR: {0:.4f}\n'.format(psnr).encode())
-				conn.send('MS-SSIM: {0:.4f}\n'.format(msssim).encode())
-				conn.send('Decoding time: {0} seconds\n'.format(decoding_time).encode())
-				conn.send(b'\n')
-				conn.send(format_results(db_get_results(db)).encode())
-				conn.send(b'\n')
-			except:
-				print('Connection to client lost...')
+			send_message(conn, 'Submission successful...', log=False)
+			send_message(conn, '', log=False)
+			send_message(conn, 'PSNR: {0:.4f}'.format(psnr), log=False)
+			send_message(conn, 'MS-SSIM: {0:.4f}\n'.format(msssim), log=False)
+			send_message(conn, 'Decoding time: {0} seconds\n'.format(decoding_time), log=False)
+			send_message(conn, '', log=False)
+			send_message(conn, format_results(db_get_results(db)), log=False)
+			send_message(conn, '', log=False, terminate=True)
 
 			shutil.move(zip_path, os.path.join(SUBMISSIONS_PATH, team_info['name'] + '.zip'))
 			shutil.rmtree(temp_dir, ignore_errors=True)
 
-			conn.send(TERMINATE)
-			conn.close()
-
 		except:
-			print('ERROR: Some unexpected error occurred...')
-			try:
-				conn.send(b'ERROR: Some unexpected error occurred...\n')
-				conn.send(TERMINATE)
-				conn.close()
-			except:
-				pass
-			shutil.rmtree(temp_dir, ignore_errors=True)
+			clean_up('ERROR: Some unexpected error occurred...')
 
 	db.close()
 
 
 def main():
+	# set up logging
+	formatter = logging.Formatter('[%(asctime)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+
+	handler = logging.StreamHandler(sys.stdout)
+	handler.setFormatter(formatter)
+
+	logger = logging.getLogger(__name__)
+	logger.addHandler(handler)
+	logger.setLevel(logging.INFO)
+
 	if len(IMAGE_FILES) == 0:
-		print('Image folder appears to be empty.')
+		logger.info('Image folder appears to be empty.')
 		return 1
 
 	if not os.path.exists(SUBMISSIONS_PATH):
@@ -391,9 +369,9 @@ def main():
 	if not os.path.exists(LOGS_PATH):
 		os.makedirs(LOGS_PATH)
 
-	print('Maximum number of bytes is {0}.'.format(BYTES_TOTAL_MAX))
-	print('Total number of pixels is {0}.'.format(IMAGE_PIXELS_TOTAL))
-	print('Connecting to database...')
+	logger.info('Maximum number of bytes is {0}.'.format(BYTES_TOTAL_MAX))
+	logger.info('Total number of pixels is {0}.'.format(IMAGE_PIXELS_TOTAL))
+	logger.info('Connecting to database...')
 
 	db_setup()
 
@@ -401,7 +379,7 @@ def main():
 	server.bind(('', PORT))
 	server.listen()
 
-	print('Listening...')
+	logger.info('Listening...')
 
 	# queue of connections
 	queue = Queue(QUEUE_SIZE)
@@ -416,18 +394,11 @@ def main():
 		conn, addr = server.accept()
 
 		try:
-			try:
-				queue.put((conn, addr[0]), block=True, timeout=2)
-				print('Queuing submission from {0} ({1})...'.format(addr[0], queue.qsize()))
-				conn.send(b'Submission queued...\n')
-			except Full:
-				print('Queue full...')
-				conn.send(b'Server busy, please try again later...\n')
-				conn.send(TERMINATE)
-				conn.close()
-		except:
-			# make sure server doesn't die when conn.send() fails
-			pass
+			queue.put((conn, addr[0]), block=True, timeout=2)
+			logger.info('Queuing submission from {0} ({1})...'.format(addr[0], queue.qsize()))
+			send_message(conn, 'Submission queued...', log=False)
+		except Full:
+			send_message(conn, 'Server busy, please try again later...', terminate=True)
 
 
 if __name__ == '__main__':
