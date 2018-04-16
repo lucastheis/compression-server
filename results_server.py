@@ -1,30 +1,62 @@
+#!/usr/bin/env python3
+
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from socketserver import ThreadingMixIn
 import json
+import os
 import sqlite3
 
-DBNAME = 'clic2018_validation.db'
+TEST_PHASE = (os.environ.get('PHASE', 'validation') == 'test')
 
+if TEST_PHASE:
+	DBNAME = 'clic2018_test.db'
+	PORT = 9000
 
-def db_get_results(db):
-	cursor = db.cursor()
-	cursor.execute('''
-		SELECT name, MAX(psnr), msssim, decoding_time, decoder_size, images_size, timestamp
-		FROM submissions
-		GROUP BY name
-		ORDER BY psnr DESC''')
+	def db_get_results(db):
+		order_by = 'psnr'
 
-	results = {}
-	for name, psnr, msssim, decoding_time, decoder_size, images_size, timestamp in cursor.fetchall():
-		results[name] = {
-			'datetime': timestamp,
-			'psnr': psnr,
-			'msssim': msssim,
-			'decoding_time': decoding_time,
-			'decoder_size': decoder_size,
-			'images_size': images_size}
+		cursor = db.cursor()
+		cursor.execute('''
+			SELECT name, psnr, msssim, decoding_time, decoder_size, images_size, MAX(timestamp)
+			FROM submissions
+			WHERE psnr > 0
+			GROUP BY name
+			ORDER BY timestamp DESC''')
 
-	return results
+		results = {}
+		for name, psnr, msssim, decoding_time, decoder_size, images_size, timestamp in cursor.fetchall():
+			results[name] = {
+				'datetime': timestamp,
+				'decoding_time': decoding_time,
+				'decoder_size': decoder_size}
+
+		return results
+
+else:
+	DBNAME = 'clic2018_validation.db'
+	PORT = 8000
+
+	def db_get_results(db):
+		order_by = 'psnr'
+
+		cursor = db.cursor()
+		cursor.execute('''
+			SELECT name, MAX(psnr), msssim, decoding_time, decoder_size, images_size, timestamp
+			FROM submissions
+			GROUP BY name
+			ORDER BY psnr DESC''')
+
+		results = {}
+		for name, psnr, msssim, decoding_time, decoder_size, images_size, timestamp in cursor.fetchall():
+			results[name] = {
+				'datetime': timestamp,
+				'psnr': psnr,
+				'msssim': msssim,
+				'decoding_time': decoding_time,
+				'decoder_size': decoder_size,
+				'images_size': images_size}
+
+		return results
 
 
 class SimpleServer(ThreadingMixIn, HTTPServer):
@@ -63,5 +95,5 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-	httpd = SimpleServer(('', 8000), Handler)
+	httpd = SimpleServer(('', PORT), Handler)
 	httpd.serve_forever()

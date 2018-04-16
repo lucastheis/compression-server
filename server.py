@@ -21,12 +21,20 @@ import subprocess
 import sys
 import time
 
+TEST_PHASE = (os.environ.get('PHASE', 'validation') == 'test')
+
+if TEST_PHASE:
+	DBNAME = 'clic2018_test.db'
+	MEMORY_LIMIT = '11g'
+else:
+	DBNAME = 'clic2018_validation.db'
+	MEMORY_LIMIT = '8g'
+
 PORT = 20000
 BUFFER_SIZE = 4096
-NUM_THREADS = 2  # number of workers evaluating submissions
+NUM_THREADS = 4  # number of workers evaluating submissions
 QUEUE_SIZE = 2  # number of additional submissions in queue
 TERMINATE = chr(0).encode()
-DBNAME = 'clic2018_validation.db'
 MAX_SUBMISSIONS_PER_DAY = 5
 TMP_DIR = os.path.join(os.getcwd(), 'temp')
 IMAGE_DIR = '/images'
@@ -39,7 +47,7 @@ LOGS_PATH = os.path.join(os.getcwd(), 'logs')
 DECODE_CMD = [
 	'docker', 'run',
 	'--rm',
-	'--memory', '8g',
+	'--memory', MEMORY_LIMIT,
 	'--memory-swap', '16g',
 	'--cpus', '2',
 	'--name', '{name}',
@@ -95,6 +103,15 @@ def db_add_submission(db, name, addr, psnr, msssim, images_size, decoding_time, 
 		VALUES ("{0}", "{1}", {2}, {3}, {4}, {5}, {6}, "{7}")'''.format(
 			name, addr, psnr, msssim, images_size, decoding_time, decoder_size, decoder_hash))
 	db.commit()
+
+
+def db_check_exists(db, decoder_hash):
+	cursor = db.cursor()
+	cursor.execute('''
+		SELECT COUNT(*) AS "count"
+		FROM submissions
+		WHERE decoder_hash = "{0}"'''.format(decoder_hash))
+	return cursor.fetchone()[0] > 0
 
 
 def db_count_recent_submissions(db, name):
@@ -246,6 +263,10 @@ def handle(queue):
 			decoder_size = os.stat(team_info['decoder']).st_size  # bytes
 			decoder_hash = file_hash(team_info['decoder'])
 
+			if TEST_PHASE and not db_check_exists(db, decoder_hash):
+				clean_up('ERROR: Decoder unknown.')
+				continue
+
 			if team_info['decoder'].lower().endswith('.zip'):
 				send_message(conn, 'Extracting decoder...')
 
@@ -330,14 +351,17 @@ def handle(queue):
 
 			logger.info('Submission from team "{0}" successful...'.format(team_info['name']))
 
-			send_message(conn, 'Submission successful...', log=False)
-			send_message(conn, '', log=False)
-			send_message(conn, 'PSNR: {0:.4f}'.format(psnr), log=False)
-			send_message(conn, 'MS-SSIM: {0:.4f}\n'.format(msssim), log=False)
-			send_message(conn, 'Decoding time: {0} seconds\n'.format(decoding_time), log=False)
-			send_message(conn, '', log=False)
-			send_message(conn, format_results(db_get_results(db)), log=False)
-			send_message(conn, '', log=False, terminate=True)
+			if TEST_PHASE:
+				send_message(conn, 'Submission successful...', log=False, terminate=True)
+			else:
+				send_message(conn, 'Submission successful...', log=False)
+				send_message(conn, '', log=False)
+				send_message(conn, 'PSNR: {0:.4f}'.format(psnr), log=False)
+				send_message(conn, 'MS-SSIM: {0:.4f}\n'.format(msssim), log=False)
+				send_message(conn, 'Decoding time: {0} seconds\n'.format(decoding_time), log=False)
+				send_message(conn, '', log=False)
+				send_message(conn, format_results(db_get_results(db)), log=False)
+				send_message(conn, '', log=False, terminate=True)
 
 			shutil.move(zip_path, os.path.join(SUBMISSIONS_PATH, team_info['name'] + '.zip'))
 			shutil.rmtree(temp_dir, ignore_errors=True)
