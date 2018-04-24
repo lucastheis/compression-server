@@ -161,8 +161,8 @@ def evaluate(conn):
 	connected = True
 
 	for image_file in IMAGE_FILES:
-		image0 = np.asarray(Image.open(image_file), dtype=np.float32)
-		image1 = np.asarray(Image.open(os.path.basename(image_file)), dtype=np.float32)
+		image0 = np.asarray(Image.open(image_file).convert('RGB'), dtype=np.float32)
+		image1 = np.asarray(Image.open(os.path.basename(image_file)).convert('RGB'), dtype=np.float32)
 
 		num_dims += image0.size
 
