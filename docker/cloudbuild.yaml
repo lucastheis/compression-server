@@ -1,0 +1,21 @@
+steps:
+- name: 'gcr.io/cloud-builders/docker'
+  args: [
+    'build',
+    '-t', 'gcr.io/$PROJECT_ID/compression:latest',
+    '--cache-from', 'gcr.io/$PROJECT_ID/compression:latest',
+    'compression' ]
+- name: 'gcr.io/cloud-builders/docker'
+  args: [ 'build', '-t', 'gcr.io/$PROJECT_ID/server:latest', 'server' ]
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['push', 'gcr.io/$PROJECT_ID/server:latest']
+- name: 'gcr.io/cloud-builders/docker'
+  args: [ 'build', '-t', 'gcr.io/$PROJECT_ID/submit:latest', 'submit' ]
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['push', 'gcr.io/$PROJECT_ID/submit:latest']
+options:
+  machineType: 'N1_HIGHCPU_8'
+images:
+  - 'gcr.io/$PROJECT_ID/compression'
+  - 'gcr.io/$PROJECT_ID/server'
+  - 'gcr.io/$PROJECT_ID/submit'

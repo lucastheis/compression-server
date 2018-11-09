@@ -27,8 +27,11 @@ if TEST_PHASE:
 		for name, psnr, msssim, decoding_time, decoder_size, images_size, timestamp in cursor.fetchall():
 			results[name] = {
 				'datetime': timestamp,
+				'psnr': psnr,
+				'msssim': msssim,
 				'decoding_time': decoding_time,
-				'decoder_size': decoder_size}
+				'decoder_size': decoder_size,
+				'images_size': images_size}
 
 		return results
 
