@@ -1,4 +1,6 @@
-FROM gcr.io/clic2019-222016/compression:latest
+ARG PROJECT_ID=clic2019-222016
+
+FROM gcr.io/$PROJECT_ID/compression:latest
 MAINTAINER Lucas Theis
 
 RUN apt-get install -y docker.io
@@ -6,7 +8,7 @@ RUN apt-get install -y docker.io
 # install gcsfuse for mounting cloud storage
 RUN apt-get install -y lsb-release
 RUN apt-get install -y curl
-ENV APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE=true
+ENV APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE true
 RUN \
   export GCSFUSE_REPO=gcsfuse-$(lsb_release -c -s) && \
   echo "deb http://packages.cloud.google.com/apt $GCSFUSE_REPO main" | tee /etc/apt/sources.list.d/gcsfuse.list && \
@@ -21,7 +23,7 @@ RUN \
   apt-get update && \
   apt-get install -y google-cloud-sdk
 
-ADD "./server.py" "./server.py"
-ADD "./msssim.py" "./msssim.py"
+ADD "./server.py" ${HOME}
+ADD "./msssim.py" ${HOME}
 
 ENTRYPOINT ["./server.py"]

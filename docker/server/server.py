@@ -32,24 +32,34 @@ else:
 	DBNAME = 'clic2018_validation.db'
 	MEMORY_LIMIT = '8g'
 
-PORT = 20100
+WORK_DIR = '/mnt/disks/gce-containers-mounts/gce-persistent-disks/clic/'
+os.chdir(WORK_DIR)
+
+PORT = int(os.environ.get('EVAL_PORT', 20000))
 BUFFER_SIZE = 4096
-NUM_THREADS = 4  # number of workers evaluating submissions
-QUEUE_SIZE = 2  # number of additional submissions in queue
+NUM_WORKERS = int(os.environ.get('EVAL_NUM_WORKERS', 4))  # number of workers evaluating submissions
+QUEUE_SIZE = int(os.environ.get('EVAL_QUEUE_SIZE', 2))  # number of additional submissions in queue
 TERMINATE = chr(0).encode()
 MAX_SUBMISSIONS_PER_DAY = 5
 TMP_DIR = os.path.join(os.getcwd(), 'temp')
-IMAGE_BUCKET = 'clic2019_training_images'  # Google Cloud Storage bucket
+IMAGE_BUCKET = os.environ.get('IMAGE_BUCKET', 'clic_images_valid')  # Google Cloud Storage bucket
 IMAGE_DIR = '/images'
 
 if IMAGE_BUCKET:
-  os.system('gcsfuse {bucket} {dir}'.format(bucket=IMAGE_BUCKET, dir=IMAGE_DIR))
+	os.system('mkdir {dir}'.format(dir=IMAGE_DIR))
+	os.system('gcsfuse {bucket} {dir}'.format(bucket=IMAGE_BUCKET, dir=IMAGE_DIR))
 
 IMAGE_FILES = glob(os.path.join(IMAGE_DIR, '*.png'))
 IMAGE_PIXELS_TOTAL = sum(np.prod(Image.open(f).size) for f in IMAGE_FILES)
 BYTES_TOTAL_MAX = int(np.ceil(IMAGE_PIXELS_TOTAL * 0.15 / 8.) + .5)
 EMAIL_REGEX = r'^[A-Za-z0-9\.\+_-]+@[A-Za-z0-9\._-]+\.[a-zA-Z]*$'
-SUBMISSIONS_PATH = os.path.join(os.getcwd(), 'submissions')
+SUBMISSIONS_BUCKET = os.environ.get('SUBMISSIONS_BUCKET', 'clic_submissions')
+SUBMISSIONS_DIR = '/submissions'
+
+if SUBMISSIONS_BUCKET:
+	os.system('mkdir {dir}'.format(dir=SUBMISSIONS_DIR))
+	os.system('gcsfuse {bucket} {dir}'.format(bucket=SUBMISSIONS_BUCKET, dir=SUBMISSIONS_DIR))
+
 LOGS_PATH = os.path.join(os.getcwd(), 'logs')
 DECODE_CMD = [
 	'docker', 'run',
@@ -60,8 +70,8 @@ DECODE_CMD = [
 	'--name', '{name}',
 	'-v', '{temp_dir}:{temp_dir}',
 	'-w', '{temp_dir}',
-	'clic2018/compression',
-	'./decode']
+	'--entrypoint', './decode',
+	'gcr.io/{project_id}/server'.format(project_id=os.environ.get('PROJECT_ID'))]
 
 
 def db_setup():
@@ -232,7 +242,7 @@ def handle(queue):
 		def clean_up(message):
 			# send final message, terminate connection, remove temp dir
 			send_message(conn, message, terminate=True)
-			shutil.rmtree(temp_dir, ignore_errors=True)
+#			shutil.rmtree(temp_dir, ignore_errors=True)   # TODO
 
 		try:
 			# count size of files
@@ -370,7 +380,10 @@ def handle(queue):
 				send_message(conn, format_results(db_get_results(db)), log=False)
 				send_message(conn, '', log=False, terminate=True)
 
-			shutil.move(zip_path, os.path.join(SUBMISSIONS_PATH, team_info['name'] + '.zip'))
+			# save submission
+			shutil.move(zip_path, os.path.join(SUBMISSIONS_DIR, team_info['name'] + '.zip'))
+
+			# remove all temporary files created by submitted decoder
 			shutil.rmtree(temp_dir, ignore_errors=True)
 
 		except:
@@ -394,11 +407,14 @@ def main():
 		logger.info('Image folder appears to be empty.')
 		return 1
 
-	if not os.path.exists(SUBMISSIONS_PATH):
-		os.makedirs(SUBMISSIONS_PATH)
+	if not os.path.exists(SUBMISSIONS_DIR):
+		os.makedirs(SUBMISSIONS_DIR)
 
 	if not os.path.exists(LOGS_PATH):
 		os.makedirs(LOGS_PATH)
+
+	if not os.path.exists(TMP_DIR):
+		os.makedirs(TMP_DIR)
 
 	logger.info('Maximum number of bytes is {0}.'.format(BYTES_TOTAL_MAX))
 	logger.info('Total number of pixels is {0}.'.format(IMAGE_PIXELS_TOTAL))
@@ -416,7 +432,7 @@ def main():
 	queue = Queue(QUEUE_SIZE)
 
 	# pool of workers
-	pool = Pool(NUM_THREADS, handle, (queue,))
+	pool = Pool(NUM_WORKERS, handle, (queue,))
 
 	threads = []
 

@@ -28,4 +28,6 @@ RUN pip2 install torchvision
 RUN pip3 install http://download.pytorch.org/whl/cu91/torch-0.4.0-cp36-cp36m-linux_x86_64.whl
 RUN pip3 install torchvision
 
+ENV PYTHONUNBUFFERED=1
+
 RUN apt-get install -y python3.6-tk

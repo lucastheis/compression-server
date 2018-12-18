@@ -1,4 +1,6 @@
-FROM gcr.io/clic2019-222016/compression:latest
+ARG PROJECT_ID=clic2019-222016
+
+FROM gcr.io/$PROJECT_ID/compression:latest
 MAINTAINER Lucas Theis
 
 ADD client.py /usr/local/bin/client
