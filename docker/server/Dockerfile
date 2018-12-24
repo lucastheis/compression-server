@@ -25,5 +25,6 @@ RUN \
 
 ADD "./server.py" ${HOME}
 ADD "./msssim.py" ${HOME}
+ADD "./sqltools.py" ${HOME}
 
 ENTRYPOINT ["./server.py"]

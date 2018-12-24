@@ -6,6 +6,7 @@ from glob import glob
 from msssim import MultiScaleSSIM
 from multiprocessing import Queue, Pool
 from queue import Full
+from sqltools import *
 from tempfile import mkdtemp
 from zipfile import ZipFile
 import json
@@ -15,6 +16,7 @@ import os
 import re
 import shutil
 import socket
+import sqlalchemy
 import sqlite3
 import stat
 import subprocess
@@ -23,15 +25,9 @@ import time
 import urllib
 import zipfile
 
-TEST_PHASE = (os.environ.get('PHASE', 'validation') == 'test')
-
-if TEST_PHASE:
-	DBNAME = 'clic2018_test.db'
-	MEMORY_LIMIT = '16g'
-else:
-	DBNAME = 'clic2018_validation.db'
-	MEMORY_LIMIT = '8g'
-
+PHASE = os.environ.get('PHASE', 'validation').lower()
+DB_URI = os.environ.get('DB_URI', 'clic2019')
+MEMORY_LIMIT = os.environ.get('MEMORY_LIMIT', '12g')
 WORK_DIR = '/mnt/disks/gce-containers-mounts/gce-persistent-disks/clic/'
 os.chdir(WORK_DIR)
 
@@ -42,7 +38,7 @@ QUEUE_SIZE = int(os.environ.get('EVAL_QUEUE_SIZE', 2))  # number of additional s
 TERMINATE = chr(0).encode()
 MAX_SUBMISSIONS_PER_DAY = 5
 TMP_DIR = os.path.join(os.getcwd(), 'temp')
-IMAGE_BUCKET = os.environ.get('IMAGE_BUCKET', 'clic_images_valid')  # Google Cloud Storage bucket
+IMAGE_BUCKET = os.environ.get('IMAGE_BUCKET', 'clic2019_images_valid')  # Google Cloud Storage bucket
 IMAGE_DIR = '/images'
 
 if IMAGE_BUCKET:
@@ -53,7 +49,7 @@ IMAGE_FILES = glob(os.path.join(IMAGE_DIR, '*.png'))
 IMAGE_PIXELS_TOTAL = sum(np.prod(Image.open(f).size) for f in IMAGE_FILES)
 BYTES_TOTAL_MAX = int(np.ceil(IMAGE_PIXELS_TOTAL * 0.15 / 8.) + .5)
 EMAIL_REGEX = r'^[A-Za-z0-9\.\+_-]+@[A-Za-z0-9\._-]+\.[a-zA-Z]*$'
-SUBMISSIONS_BUCKET = os.environ.get('SUBMISSIONS_BUCKET', 'clic_submissions')
+SUBMISSIONS_BUCKET = os.environ.get('SUBMISSIONS_BUCKET', 'clic2019_submissions')
 SUBMISSIONS_DIR = '/submissions'
 
 if SUBMISSIONS_BUCKET:
@@ -72,83 +68,6 @@ DECODE_CMD = [
 	'-w', '{temp_dir}',
 	'--entrypoint', './decode',
 	'gcr.io/{project_id}/server'.format(project_id=os.environ.get('PROJECT_ID'))]
-
-
-def db_setup():
-	db = sqlite3.connect(DBNAME)
-	cursor = db.cursor()
-	cursor.execute('''
-		CREATE TABLE IF NOT EXISTS teams (
-			name CHARACTER(128) PRIMARY KEY,
-			password CHARACTER(64),
-			email CHARACTER(128))''')
-	cursor.execute('''
-		CREATE TABLE IF NOT EXISTS submissions (
-			timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-			name CHARACTER(128),
-			addr CHARACTER(128),
-			psnr DOUBLE,
-			msssim DOUBLE,
-			images_size INT,
-			decoding_time INT,
-			decoder_size INT,
-			decoder_hash CHARACTER(64))''')
-	db.commit()
-	db.close()
-
-
-def db_get_password(db, name):
-	cursor = db.cursor()
-	cursor.execute('SELECT password FROM teams WHERE name = "{0}"'.format(name))
-
-	passwords = cursor.fetchall()
-
-	if len(passwords) == 1:
-		return passwords[0][0]
-
-
-def db_create_team(db, name, password, email):
-	cursor = db.cursor()
-	cursor.execute('INSERT INTO teams VALUES ("{0}", "{1}", "{2}")'.format(name, password, email))
-	db.commit()
-
-
-def db_add_submission(db, name, addr, psnr, msssim, images_size, decoding_time, decoder_size, decoder_hash):
-	cursor = db.cursor()
-	cursor.execute('''
-		INSERT INTO submissions (name, addr, psnr, msssim, images_size, decoding_time, decoder_size, decoder_hash)
-		VALUES ("{0}", "{1}", {2}, {3}, {4}, {5}, {6}, "{7}")'''.format(
-			name, addr, psnr, msssim, images_size, decoding_time, decoder_size, decoder_hash))
-	db.commit()
-
-
-def db_check_exists(db, decoder_hash):
-	cursor = db.cursor()
-	cursor.execute('''
-		SELECT COUNT(*) AS "count"
-		FROM submissions
-		WHERE decoder_hash = "{0}"'''.format(decoder_hash))
-	return cursor.fetchone()[0] > 0
-
-
-def db_count_recent_submissions(db, name):
-	cursor = db.cursor()
-	cursor.execute('''
-		SELECT COUNT(*) AS "count"
-		FROM submissions
-		WHERE timestamp > DATETIME("now", "-1 day") AND name = "{0}"'''.format(name))
-	return cursor.fetchone()[0]
-
-
-def db_get_results(db):
-	cursor = db.cursor()
-	cursor.execute('SELECT name, MAX(psnr), msssim, decoding_time, decoder_size, timestamp FROM submissions GROUP BY name ORDER BY psnr DESC')
-
-	results = {}
-	for name, psnr, msssim, decoding_time, decoder_size, timestamp in cursor.fetchall():
-		results[name] = {'psnr': psnr, 'msssim': msssim, 'decoding_time': decoding_time, 'decoder_size': decoder_size}
-
-	return results
 
 
 def format_results(results):
@@ -209,7 +128,7 @@ def send_message(conn, message, log=True, terminate=False):
 
 
 def handle(queue):
-	db = sqlite3.connect(DBNAME)
+	db = db_connect()
 
 	logger = logging.getLogger(__name__)
 
@@ -280,7 +199,7 @@ def handle(queue):
 			decoder_size = os.stat(team_info['decoder']).st_size  # bytes
 			decoder_hash = file_hash(team_info['decoder'])
 
-			if False and TEST_PHASE and not db_check_exists(db, decoder_hash):
+			if PHASE == 'test' and db_check_exists(db, decoder_hash):
 				clean_up('ERROR: Decoder unknown.')
 				continue
 
@@ -305,7 +224,7 @@ def handle(queue):
 			password = db_get_password(db, team_info['name'])
 
 			if password is None:
-				db_create_team(db, team_info['name'], team_info['password'], team_info['email'])
+				db_add_team(db, team_info['name'], team_info['password'], team_info['email'])
 
 			elif team_info['password'] != password and team_info['password'] != '7dad575ea75bf2c5305ad5c82524500196e61abb6d98d234e6af9b7cb4ee1595':
 				clean_up('ERROR: Incorrect password.')
@@ -368,7 +287,7 @@ def handle(queue):
 
 			logger.info('Submission from team "{0}" successful...'.format(team_info['name']))
 
-			if TEST_PHASE:
+			if PHASE == 'test':
 				send_message(conn, 'Submission successful...', log=False, terminate=True)
 			else:
 				send_message(conn, 'Submission successful...', log=False)
@@ -420,7 +339,7 @@ def main():
 	logger.info('Total number of pixels is {0}.'.format(IMAGE_PIXELS_TOTAL))
 	logger.info('Connecting to database...')
 
-	db_setup()
+	db_setup(DB_URI)
 
 	server = socket.socket()
 	server.bind(('', PORT))
