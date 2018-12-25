@@ -11,6 +11,8 @@ Assuming the Google Cloud SDK has been setup, choose the project by running:
 
 Then build the all required Docker images by running `./cloudbuild.sh`.
 
+Under "Container Registry > Settings", enable public access to the Docker images.
+
 # 3. Create storage and upload images
 
 Under "Storage", create buckets called `clic2019_images_valid` and `clic2019_images_test`, then upload the

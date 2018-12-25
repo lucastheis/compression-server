@@ -28,7 +28,9 @@ import zipfile
 PHASE = os.environ.get('PHASE', 'validation').lower()
 DB_URI = os.environ.get('DB_URI', 'clic2019')
 MEMORY_LIMIT = os.environ.get('MEMORY_LIMIT', '12g')
-WORK_DIR = '/mnt/disks/gce-containers-mounts/gce-persistent-disks/clic/'
+WORK_DIR = os.path.join(
+	'/mnt/disks/gce-containers-mounts/gce-persistent-disks',
+	os.environ.get('DISK', 'clic2019-cpu0'))
 os.chdir(WORK_DIR)
 
 PORT = int(os.environ.get('EVAL_PORT', 20000))
@@ -40,6 +42,10 @@ MAX_SUBMISSIONS_PER_DAY = 5
 TMP_DIR = os.path.join(os.getcwd(), 'temp')
 IMAGE_BUCKET = os.environ.get('IMAGE_BUCKET', 'clic2019_images_valid')  # Google Cloud Storage bucket
 IMAGE_DIR = '/images'
+DEBUG = bool(os.environ.get('DEBUG', False))
+TRANSPARENT_PSNR = 40.
+TRANSPARENT_MSSSIM = 0.993
+DECODE_TIMEOUT = 10 * 3600  # seconds
 
 if IMAGE_BUCKET:
 	os.system('mkdir {dir}'.format(dir=IMAGE_DIR))
@@ -71,9 +77,13 @@ DECODE_CMD = [
 
 
 def format_results(results):
-	res_str = ['{0:<36} {1:<10} {2:<10}'.format('TEAM', 'PSNR', 'MS-SSIM')]
+	res_str = ['{0:<36} {1:<10} {2:<10} {3:<10}'.format('TEAM', 'PSNR', 'MS-SSIM', 'SIZE')]
 	for team_name, team_results in results.items():
-		res_str.append('{0:<36} {1:<10.2f} {2:.3f}'.format(team_name[:32], team_results['psnr'], team_results['msssim']))
+		res_str.append('{0:<36} {1:<10.2f} {2:<10.3f} {3:.3f}'.format(
+			team_name[:32],
+			team_results['psnr'],
+			team_results['msssim'],
+			team_results['images_size']))
 	return '\n'.join(res_str)
 
 
@@ -105,6 +115,8 @@ def evaluate(conn):
 		sqerror_values.append(mse(image1, image0))
 		msssim_values.append(msssim(image0, image1))
 
+		send_message(conn, '.', log=False, newline=False)
+
 	return mse2psnr(np.sum(sqerror_values) / num_dims), np.mean(msssim_values)
 
 
@@ -114,11 +126,14 @@ def file_hash(file_path):
 		return sha256(handle.read()).hexdigest()
 
 
-def send_message(conn, message, log=True, terminate=False):
+def send_message(conn, message, log=True, terminate=False, newline=True):
 	if log:
 		logging.getLogger(__name__).info(message)
 	try:
-		conn.send(message.encode('utf-8') + b'\n')
+		if newline:
+			conn.send(message.encode('utf-8') + b'\n')
+		else:
+			conn.send(message.encode('utf-8'))
 
 		if terminate:
 			conn.send(TERMINATE)
@@ -161,7 +176,8 @@ def handle(queue):
 		def clean_up(message):
 			# send final message, terminate connection, remove temp dir
 			send_message(conn, message, terminate=True)
-#			shutil.rmtree(temp_dir, ignore_errors=True)   # TODO
+			if not DEBUG:
+				shutil.rmtree(temp_dir, ignore_errors=True)
 
 		try:
 			# count size of files
@@ -171,7 +187,11 @@ def handle(queue):
 					if file not in ['team_info.json', team_info['decoder'], 'data.zip']:
 						bytes_total += os.stat(os.path.join(root, file)).st_size
 
-			if bytes_total > BYTES_TOTAL_MAX:
+			if team_info['task'] not in ['lowrate', 'transparent']:
+				clean_up('ERROR: Task needs to be one of \'transparent\' or \'lowrate\'.')
+				continue
+
+			if team_info['task'] == 'lowrate' and bytes_total > BYTES_TOTAL_MAX:
 				clean_up('ERROR: Size of files exceeds maximum ({0} > {1}).'.format(bytes_total, BYTES_TOTAL_MAX))
 				continue
 
@@ -232,15 +252,33 @@ def handle(queue):
 
 			# decode images
 			decoding_start = time.time()
-			send_message(conn, 'Decoding images...')
+			send_message(conn, 'Decoding images...', newline=False)
 			with open(os.path.join(LOGS_PATH, team_info['name'] + '.log'), 'w') as stdout:
+				decode_cmd = [s.format(temp_dir=temp_dir, name=team_info['name']) for s in DECODE_CMD]
+				if DEBUG:
+					print(' '.join(decode_cmd))
 				proc = subprocess.Popen(
-					[s.format(temp_dir=temp_dir, name=team_info['name']) for s in DECODE_CMD],
+					decode_cmd,
 					stdout=stdout,
 					stderr=stdout,
 					shell=False)
-				proc.wait()
+
+				while proc.poll() is None:
+					time.sleep(10)
+
+					# keep connection alive
+					send_message(conn, '.', log=False, newline=False)
+
+					if time.time() - decoding_start > DECODE_TIMEOUT:
+						proc.terminate()
+
+				send_message(conn, '', log=False, newline=True)
+
 			decoding_time = int((time.time() - decoding_start) * 1000.)  # ms
+
+			if decoding_time / 1000. > DECODE_TIMEOUT:
+				clean_up('ERROR: Decoding took too long.')
+				continue
 
 			if proc.returncode == 125:
 				clean_up('ERROR: Another submission by your team appears to still be running.')
@@ -269,21 +307,33 @@ def handle(queue):
 					clean_up('ERROR: Missing image {0}.'.format(os.path.basename(image_file)))
 				continue
 
-			send_message(conn, 'Evaluating...')
+			send_message(conn, 'Evaluating...', newline=False)
 
 			# evaluate decoded images
 			psnr, msssim = evaluate(conn)
+
+			send_message(conn, '', newline=True)
+
+			if team_info['task'] == 'transparent':
+				if psnr < TRANSPARENT_PSNR:
+					clean_up('ERROR: PSNR of {0:.3f} is above threshold of {1:.3f}.'.format(psnr, TRANSPARENT_PSNR))
+					continue
+				if msssim < TRANSPARENT_MSSSIM:
+					clean_up('ERROR: MS-SSIM of {0:.3f} is above threshold of {1:.3f}.'.format(msssim, TRANSPARENT_MSSSIM))
+					continue
 
 			db_add_submission(
 				db,
 				team_info['name'],
 				addr,
-				psnr,
-				msssim,
+				float(psnr),
+				float(msssim),
 				bytes_total,
 				decoding_time,
 				decoder_size,
-				decoder_hash)
+				decoder_hash,
+				team_info['task'],
+				PHASE)
 
 			logger.info('Submission from team "{0}" successful...'.format(team_info['name']))
 
@@ -296,7 +346,7 @@ def handle(queue):
 				send_message(conn, 'MS-SSIM: {0:.4f}\n'.format(msssim), log=False)
 				send_message(conn, 'Decoding time: {0} seconds\n'.format(decoding_time), log=False)
 				send_message(conn, '', log=False)
-				send_message(conn, format_results(db_get_results(db)), log=False)
+				send_message(conn, format_results(db_get_results(db, team_info['task'], PHASE)), log=False)
 				send_message(conn, '', log=False, terminate=True)
 
 			# save submission
@@ -305,7 +355,9 @@ def handle(queue):
 			# remove all temporary files created by submitted decoder
 			shutil.rmtree(temp_dir, ignore_errors=True)
 
-		except:
+		except Exception as exc:
+			if DEBUG:
+				print(exc)
 			clean_up('ERROR: Some unexpected error occurred...')
 
 	db.close()

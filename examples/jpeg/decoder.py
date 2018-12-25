@@ -3,5 +3,5 @@
 from PIL import Image
 from glob import glob
 
-for image_file in glob('images/*.jpg'):
+for image_file in glob('*/*.jpg'):
     Image.open(image_file).save(image_file[:-3] + 'png')

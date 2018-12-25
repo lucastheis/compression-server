@@ -48,7 +48,8 @@ def main(args):
 			'name': args.name,
 			'email': args.email,
 			'password': sha256(args.password.encode()).hexdigest(),
-			'decoder': os.path.basename(args.decoder)}
+			'decoder': os.path.basename(args.decoder),
+			'task': args.task}
 
 		# create a zip archive containing all files
 		zip_file = ZipFile(temp_file, 'w')
@@ -90,5 +91,7 @@ if __name__ == '__main__':
 		help='A password needed for updating your team\'s results later')
 	parser.add_argument('--email', '-e', required=True,
 		help='An email address to reach your team')
+	parser.add_argument('--task', '-t', choices=['lowrate', 'transparent'], default='lowrate',
+		help='Chooses one of two tasks (lowrate, transparent)')
 
 	sys.exit(main(parser.parse_args()))
