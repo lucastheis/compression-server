@@ -102,15 +102,23 @@ def db_count_recent_submissions(db, name):
 def db_get_results(db, task, phase):
 	q = db.query(Submission).filter(Submission.phase == phase, Submission.task == task)
 
-	results = defaultdict(lambda: {'psnr': -np.inf, 'images_size': np.inf})
+	results = defaultdict(lambda: {'psnr': -np.inf, 'images_size': np.inf, 'datetime': 0})
+
 	for row in q.all():
-		better_psnr = (task != 'transparent' and row.psnr > results[row.name]['psnr'])
-		better_size = (task == 'transparent' and row.images_size < results[row.name]['images_size'])
-		if better_psnr or better_size:
-				results[row.name] = {
-					'psnr': row.psnr,
-					'msssim': row.msssim,
-					'images_size': row.images_size,
-					'decoding_time': row.decoding_time,
-					'decoder_size': row.decoder_size}
+		replace = False
+		if phase == 'test' and row.timestamp > results[row.name]['timestamp']:
+			replace = True
+		elif task != 'transparent' and row.psnr > results[row.name]['psnr']:
+			replace = True
+		elif task == 'transparent' and row.images_size < results[row.name]['images_size']:
+			replace = True
+
+		if replace:
+			results[row.name] = {
+				'datetime': str(row.timestamp),
+				'psnr': row.psnr,
+				'msssim': row.msssim,
+				'images_size': row.images_size,
+				'decoding_time': row.decoding_time,
+				'decoder_size': row.decoder_size}
 	return dict(results)

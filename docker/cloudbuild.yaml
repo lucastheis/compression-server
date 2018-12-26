@@ -23,9 +23,18 @@ steps:
     'submit' ]
 - name: 'gcr.io/cloud-builders/docker'
   args: ['push', 'gcr.io/$PROJECT_ID/submit:latest']
+- name: 'gcr.io/cloud-builders/docker'
+  args: [
+    'build',
+    '--build-arg', 'PROJECT_ID=$PROJECT_ID',
+    '-t', 'gcr.io/$PROJECT_ID/results:latest',
+    'results' ]
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['push', 'gcr.io/$PROJECT_ID/results:latest']
 options:
   machineType: 'N1_HIGHCPU_8'
 images:
   - 'gcr.io/$PROJECT_ID/compression'
   - 'gcr.io/$PROJECT_ID/server'
   - 'gcr.io/$PROJECT_ID/submit'
+  - 'gcr.io/$PROJECT_ID/results'

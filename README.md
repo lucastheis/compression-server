@@ -26,9 +26,9 @@ stored.
 
 Under "IAM & admin", create a service account, then edit `cloudrun-cpu0.sh` and enter its name.
 
-# 5. Reserve fixed IP
+# 5. Reserve fixed IPs
 
-Under "VPC network > External IP addresses", create an external IP address called `clic2019-ccpu0`,
+Under "VPC network > External IP addresses", create an external IP address called `clic2019-cpu0`,
 then edit `cloudrun-cpu0.sh` accordingly. Pay attention to the zone as well. The zone of the IP has
 to match the zone of the server.
 
@@ -61,3 +61,10 @@ the maximum number of bits allowed in the encoded images.
 # 10. Create more servers
 
 To create additional servers, create a copy of `cloudrun-cpu0.sh` and repeat steps 5 to 9.
+
+# 11. Results server
+
+Reserve a second external IP for the server which reports results in JSON format and name the IP 
+`clic2019-results`. Edit `cloudrun-results.sh` accordingly.
+
+Start the server with `./cloudrun-results.sh`.

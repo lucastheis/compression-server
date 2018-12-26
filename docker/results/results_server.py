@@ -2,64 +2,13 @@
 
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from socketserver import ThreadingMixIn
+from sqltools import *
 import json
 import os
-import sqlite3
+import re
 
-TEST_PHASE = (os.environ.get('PHASE', 'validation') == 'test')
-
-if TEST_PHASE:
-	DBNAME = 'clic2018_test.db'
-	PORT = 9000
-
-	def db_get_results(db):
-		order_by = 'psnr'
-
-		cursor = db.cursor()
-		cursor.execute('''
-			SELECT name, psnr, msssim, decoding_time, decoder_size, images_size, MAX(timestamp)
-			FROM submissions
-			WHERE psnr > 0
-			GROUP BY name
-			ORDER BY timestamp DESC''')
-
-		results = {}
-		for name, psnr, msssim, decoding_time, decoder_size, images_size, timestamp in cursor.fetchall():
-			results[name] = {
-				'datetime': timestamp,
-				'psnr': psnr,
-				'msssim': msssim,
-				'decoding_time': decoding_time,
-				'decoder_size': decoder_size,
-				'images_size': images_size}
-
-		return results
-
-else:
-	DBNAME = 'clic2018_validation.db'
-	PORT = 8000
-
-	def db_get_results(db):
-		order_by = 'psnr'
-
-		cursor = db.cursor()
-		cursor.execute('''
-			SELECT name, MAX(psnr), msssim, decoding_time, decoder_size, images_size, timestamp
-			FROM submissions
-			GROUP BY name
-			ORDER BY psnr DESC''')
-
-		results = {}
-		for name, psnr, msssim, decoding_time, decoder_size, images_size, timestamp in cursor.fetchall():
-			results[name] = {
-				'datetime': timestamp,
-				'psnr': psnr,
-				'msssim': msssim,
-				'decoding_time': decoding_time,
-				'decoder_size': decoder_size,
-				'images_size': images_size}
-
-		return results
+DB_URI = os.environ.get('DB_URI', 'sqlite:///clic2019.db')
+PORT = os.environ.get('RESULTS_PORT', 8000)
 
 
 class SimpleServer(ThreadingMixIn, HTTPServer):
@@ -73,12 +22,19 @@ class Handler(BaseHTTPRequestHandler):
 		self.end_headers()
 
 	def do_GET(self):
-		if self.path == '/':
+		match = re.match('/(?P<task>transparent|lowrate)/(?P<phase>test|valid)/?', self.path)
+
+		if match is None:
+			self.send_error(404)
+		else:
+			phase = match.group('phase')
+			task = match.group('task')
+
 			print('Connecting...')
-			db = sqlite3.connect(DBNAME)
+			db = db_connect()
 
 			print('Fetching results...')
-			results = db_get_results(db)
+			results = db_get_results(db, task, phase)
 
 			print('Sending headers...')
 			self._set_headers()
@@ -90,13 +46,13 @@ class Handler(BaseHTTPRequestHandler):
 			print('Closing connection...')
 			db.close()
 			print('Done.')
-		else:
-			self.send_error(404)
 
 	def do_HEAD(self):
 		self._set_headers()
 
 
 if __name__ == "__main__":
+	db_setup(DB_URI)
+
 	httpd = SimpleServer(('', PORT), Handler)
 	httpd.serve_forever()

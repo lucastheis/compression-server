@@ -1,4 +1,4 @@
-ARG PROJECT_ID=clic2019-222016
+ARG PROJECT_ID=clic2019-215616
 
 FROM gcr.io/$PROJECT_ID/compression:latest
 MAINTAINER Lucas Theis
@@ -26,5 +26,7 @@ RUN \
 ADD "./server.py" ${HOME}
 ADD "./msssim.py" ${HOME}
 ADD "./sqltools.py" ${HOME}
+
+RUN chmod +x ./server.py
 
 ENTRYPOINT ["./server.py"]

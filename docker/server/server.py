@@ -26,7 +26,7 @@ import urllib
 import zipfile
 
 PHASE = os.environ.get('PHASE', 'validation').lower()
-DB_URI = os.environ.get('DB_URI', 'clic2019')
+DB_URI = os.environ.get('DB_URI', 'sqlite:///clic2019.db')
 MEMORY_LIMIT = os.environ.get('MEMORY_LIMIT', '12g')
 WORK_DIR = os.path.join(
 	'/mnt/disks/gce-containers-mounts/gce-persistent-disks',
@@ -322,6 +322,7 @@ def handle(queue):
 					clean_up('ERROR: MS-SSIM of {0:.3f} is above threshold of {1:.3f}.'.format(msssim, TRANSPARENT_MSSSIM))
 					continue
 
+			phase = 'test' if PHASE == 'test' else 'valid'
 			db_add_submission(
 				db,
 				team_info['name'],
@@ -333,7 +334,7 @@ def handle(queue):
 				decoder_size,
 				decoder_hash,
 				team_info['task'],
-				PHASE)
+				phase)
 
 			logger.info('Submission from team "{0}" successful...'.format(team_info['name']))
 
