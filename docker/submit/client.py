@@ -10,7 +10,7 @@ import re
 import socket
 import sys
 
-HOST = os.environ.get('EVAL_SERVER', 'eval-cpu0.compression.cc')
+HOST = os.environ.get('EVAL_SERVER', 'eval.compression.cc')
 PORT = int(os.environ.get('EVAL_PORT', 20000))
 BUFFER_SIZE = 4096
 TERMINATE = chr(0).encode()
