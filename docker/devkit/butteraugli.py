@@ -31,6 +31,27 @@ if not _check_bin():
 # ---------------
 
 
+def _normalize(img, max_val, auto_transpose):
+    if img.dtype == np.float32:
+        if max_val is None:
+            raise ValueError('Input is float32. Expected max_val.')
+        img = (img / max_val * 255.).round().astype(np.uint8)
+    if img.dtype != np.uint8:
+        raise ValueError('Expected uint8 or float32, got {}, {}'.format(img.dtype, img.dtype))
+    shape = img.shape
+    if len(shape) != 3:
+        raise ValueError('Expected HWC or CHW, got shape {}'.format(shape))
+    if shape[-1] == 3:
+        return img
+    if shape[0] == 3:
+        if auto_transpose:
+            return img.transpose(1, 2, 0)
+        else:
+            raise ValueError('Got 3HW, pass either HW3 or use auto_transpose=True (shape: {})'.format(shape))
+
+    raise ValueError('Invalid, expected C=3 channels, got shape {}'.format(shape))
+
+
 def compare_image_numpy(imga, imgb, max_val=None, auto_transpose=False):
     """
     Compare numpy images.
@@ -44,30 +65,10 @@ def compare_image_numpy(imga, imgb, max_val=None, auto_transpose=False):
     :param auto_transpose: If given, transpose 3HW to HW3
     :return: butteraugli score
     """
-    if imga.dtype == np.float32:
-        if max_val is None:
-            raise ValueError('Input is float32. Expected max_val.')
-        imga = (imga / max_val * 255.).round().astype(np.uint8)
-    if imgb.dtype == np.float32:
-        if max_val is None:
-            raise ValueError('Input is float32. Expected max_val.')
-        imgb = (imgb / max_val * 255.).round().astype(np.uint8)
-    if imga.dtype != np.uint8 or imgb.dtype != np.uint8:
-        raise ValueError('Expected uint8, got {}, {}'.format(imga.dtype, imgb.dtype))
     if imga.shape != imgb.shape:
         raise ValueError('Expected equal shapes: {}, {}'.format(imga.shape, imgb.shape))
-    shape = imga.shape
-    if len(shape) != 3:
-        raise ValueError('Expected HWC or CHW, got shape {}'.format(shape))
-    if shape[-1] != 3:
-        if shape[0] == 3:
-            if auto_transpose:
-                imga = imga.transpose(1, 2, 0)
-                imgb = imgb.transpose(1, 2, 0)
-            else:
-                raise ValueError('Got 3HW, pass either HW3 or use auto_transpose=True (shape: {})'.format(shape))
-        else:
-            raise ValueError('Invalid, expected C=3 channels, got shape {}'.format(shape))
+    imga = _normalize(imga, max_val, auto_transpose)
+    imgb = _normalize(imgb, max_val, auto_transpose)
 
     with tempfile.TemporaryDirectory() as tmp:
         imga_p = os.path.join(tmp, '_a.png')
