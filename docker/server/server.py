@@ -316,10 +316,10 @@ def handle(queue):
 
 			if team_info['task'] == 'transparent':
 				if psnr < TRANSPARENT_PSNR:
-					clean_up('ERROR: PSNR of {0:.3f} is above threshold of {1:.3f}.'.format(psnr, TRANSPARENT_PSNR))
+					clean_up('ERROR: PSNR of {0:.3f} is below threshold of {1:.3f}.'.format(psnr, TRANSPARENT_PSNR))
 					continue
 				if msssim < TRANSPARENT_MSSSIM:
-					clean_up('ERROR: MS-SSIM of {0:.3f} is above threshold of {1:.3f}.'.format(msssim, TRANSPARENT_MSSSIM))
+					clean_up('ERROR: MS-SSIM of {0:.3f} is below threshold of {1:.3f}.'.format(msssim, TRANSPARENT_MSSSIM))
 					continue
 
 			phase = 'test' if PHASE == 'test' else 'valid'
