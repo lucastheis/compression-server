@@ -46,7 +46,7 @@ class Submission(Base):
 
 
 def db_setup(dburi):
-	engine = create_engine(dburi, echo=bool(os.environ.get('DEBUG')))
+	engine = create_engine(dburi, echo=bool(os.environ.get('DEBUG')), pool_pre_ping=True)
 
 	Session.configure(bind=engine)
 

@@ -143,12 +143,14 @@ def send_message(conn, message, log=True, terminate=False, newline=True):
 
 
 def handle(queue):
-	db = db_connect()
-
 	logger = logging.getLogger(__name__)
 
 	while True:
 		conn, addr = queue.get()
+
+		logger.info('Connecting to database...')
+
+		db = db_connect()
 
 		send_message(conn, 'Processing submission...')
 
@@ -172,10 +174,15 @@ def handle(queue):
 
 		except:
 			send_message(conn, "ERROR: Unable to read data.", terminate=True)
+			continue
 
 		def clean_up(message):
-			# send final message, terminate connection, remove temp dir
+			# send final message, terminate connection to client, remove temp dir
 			send_message(conn, message, terminate=True)
+
+			# disconnect from DB
+			db.close()
+
 			if not DEBUG:
 				shutil.rmtree(temp_dir, ignore_errors=True)
 
@@ -255,8 +262,9 @@ def handle(queue):
 			send_message(conn, 'Decoding images...', newline=False)
 			with open(os.path.join(LOGS_PATH, team_info['name'] + '.log'), 'w') as stdout:
 				decode_cmd = [s.format(temp_dir=temp_dir, name=team_info['name']) for s in DECODE_CMD]
-				if DEBUG:
-					print(' '.join(decode_cmd))
+
+				logger.debug(' '.join(decode_cmd))
+
 				proc = subprocess.Popen(
 					decode_cmd,
 					stdout=stdout,
@@ -357,11 +365,10 @@ def handle(queue):
 			shutil.rmtree(temp_dir, ignore_errors=True)
 
 		except Exception as exc:
-			if DEBUG:
-				print(exc)
+			logger.debug(exc)
 			clean_up('ERROR: Some unexpected error occurred...')
 
-	db.close()
+		db.close()
 
 
 def main():
@@ -373,7 +380,11 @@ def main():
 
 	logger = logging.getLogger(__name__)
 	logger.addHandler(handler)
-	logger.setLevel(logging.INFO)
+
+	if DEBUG:
+		logger.setLevel(logging.DEBUG)
+	else:
+		logger.setLevel(logging.INFO)
 
 	if len(IMAGE_FILES) == 0:
 		logger.info('Image folder appears to be empty.')
@@ -390,7 +401,7 @@ def main():
 
 	logger.info('Maximum number of bytes is {0}.'.format(BYTES_TOTAL_MAX))
 	logger.info('Total number of pixels is {0}.'.format(IMAGE_PIXELS_TOTAL))
-	logger.info('Connecting to database...')
+	logger.info('Setting up database...')
 
 	db_setup(DB_URI)
 
