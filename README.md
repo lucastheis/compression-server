@@ -7,7 +7,7 @@ Create a new Google Cloud project in the Google Cloud console.
 
 Assuming the Google Cloud SDK has been setup, choose the project by running:
 
-  gcloud config set project <project-id>
+  gcloud config set project \<project-id>
 
 Then build the all required Docker images by running `./cloudbuild.sh`.
 
