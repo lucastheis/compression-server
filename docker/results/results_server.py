@@ -3,12 +3,15 @@
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from socketserver import ThreadingMixIn
 from sqltools import *
+from threading import Thread
 import json
 import os
 import re
+import ssl
 
 DB_URI = os.environ.get('DB_URI', 'sqlite:///clic2019.db')
-PORT = os.environ.get('RESULTS_PORT', 8000)
+HTTP_PORT = int(os.environ.get('RESULTS_HTTP_PORT', 80))
+HTTPS_PORT = int(os.environ.get('RESULTS_HTTPS_PORT', 443))
 
 
 class SimpleServer(ThreadingMixIn, HTTPServer):
@@ -51,8 +54,27 @@ class Handler(BaseHTTPRequestHandler):
 		self._set_headers()
 
 
+def launch_server(https=False, port=80):
+	httpd = SimpleServer(('', port), Handler)
+
+	if https:
+		httpd.socket = ssl.wrap_socket(
+			httpd.socket,
+			keyfile='./key.pem',
+			certfile='./cert.pem',
+			server_side=True)
+
+	httpd.serve_forever()
+
+
 if __name__ == "__main__":
 	db_setup(DB_URI)
 
-	httpd = SimpleServer(('', PORT), Handler)
-	httpd.serve_forever()
+	http = Thread(target=launch_server, args=(False, HTTP_PORT))
+	https = Thread(target=launch_server, args=(True, HTTPS_PORT))
+
+	http.start()
+	https.start()
+
+	http.join()
+	https.join()

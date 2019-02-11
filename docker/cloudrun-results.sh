@@ -1,6 +1,7 @@
 SERVER_NAME="server-results"
 PROJECT_ID=$(gcloud config list --format 'value(core.project)' 2>/dev/null)
-RESULTS_PORT=8000
+RESULTS_HTTP_PORT=80
+RESULTS_HTTPS_PORT=443
 ZONE="us-east1-b"
 EXTERNAL_ADDRESS="35.243.129.128"
 DB_INSTANCE="clic2019"
@@ -16,13 +17,15 @@ gcloud beta compute instances create-with-container ${SERVER_NAME} \
   --zone="${ZONE}" \
   --container-image="gcr.io/${PROJECT_ID}/results:latest" \
   --address="${EXTERNAL_ADDRESS}" \
-  --container-env="RESULST_PORT=${RESULTS_PORT},DB_URI=${DB_URI}" \
+  --container-env="RESULTS_HTTPS_PORT=${RESULTS_HTTPS_PORT},RESULTS_HTTP_PORT=${RESULTS_HTTP_PORT},DB_URI=${DB_URI}" \
   --container-restart-policy="never"
 
-FIREWALL=$(gcloud compute firewall-rules list --filter="name=allow-results")
+FIREWALL=$(gcloud compute firewall-rules list --filter="name=allow-results-http")
 
 if [ -z "$FIREWALL" ]; then
-  gcloud compute firewall-rules create allow-results --allow=tcp:${RESULTS_PORT};
+  gcloud compute firewall-rules create allow-results-http --allow=tcp:${RESULTS_HTTPS_PORT};
+  gcloud compute firewall-rules create allow-results-https --allow=tcp:${RESULTS_HTTP_PORT};
 else
-  gcloud compute firewall-rules update allow-results --allow=tcp:${RESULTS_PORT};
+  gcloud compute firewall-rules update allow-results-http --allow=tcp:${RESULTS_HTTP_PORT};
+  gcloud compute firewall-rules update allow-results-https --allow=tcp:${RESULTS_HTTPS_PORT};
 fi
