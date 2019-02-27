@@ -6,9 +6,11 @@ RUN apt-get upgrade -y
 
 RUN apt-get install -y git
 RUN apt-get install -y libjpeg-dev libpng-dev
+RUN apt-get install -y ffmpeg
 RUN apt-get install -y python2.7 python-pip
-RUN apt-get install -y python3.6 python3-pip
+RUN apt-get install -y python3.6 python3-pip python3.6-tk
 RUN apt-get install -y libopenblas-base
+RUN apt-get install -y libopencv-dev python-opencv python3-opencv
 
 COPY requirements.txt /tmp
 WORKDIR /tmp
@@ -29,5 +31,3 @@ RUN pip3 install http://download.pytorch.org/whl/cu91/torch-0.4.0-cp36-cp36m-lin
 RUN pip3 install torchvision
 
 ENV PYTHONUNBUFFERED=1
-
-RUN apt-get install -y python3.6-tk
