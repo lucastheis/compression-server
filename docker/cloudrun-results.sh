@@ -1,7 +1,7 @@
 SERVER_NAME="server-results"
 PROJECT_ID=$(gcloud config list --format 'value(core.project)' 2>/dev/null)
-RESULTS_HTTP_PORT=80
-RESULTS_HTTPS_PORT=443
+RESULTS_HTTP_PORT=8000
+RESULTS_HTTPS_PORT=4433
 ZONE="us-east1-b"
 EXTERNAL_ADDRESS="35.243.129.128"
 DB_INSTANCE="clic2019"
