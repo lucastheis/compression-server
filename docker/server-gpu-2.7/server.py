@@ -131,7 +131,8 @@ def file_hash(file_path):
 
 
 def send_message(conn, message, log=True, terminate=False, newline=True):
-	if log:
+	#if log:
+	if True:
 		logging.getLogger(__name__).info(message)
 	try:
 		if newline:
@@ -145,12 +146,6 @@ def send_message(conn, message, log=True, terminate=False, newline=True):
 	except:
 		logging.info('Error in sending message')
 		pass
-
-
-def forking_dumps(obj):
-    buf = StringIO.StringIO()
-    ForkingPickler(buf).dump(obj)
-    return buf.getvalue()
   
     
 def handle(queue):
@@ -158,7 +153,7 @@ def handle(queue):
 
 	while True:
 		(fd, addr) = queue.get(True, None)
-		conn = socket.fromfd(fd, socket.AF_INET, socket.SOCK_STREAM)
+		conn = socket.fromfd(rebuild_handle(fd), socket.AF_INET, socket.SOCK_STREAM)
 		
 		logger.info('Connecting to database...')
 
@@ -172,25 +167,20 @@ def handle(queue):
 
 		logger.info('Extracting files in {0}'.format(temp_dir))
 
-		logger.info(str(addr))
-		logger.info(str(conn))
 		try:
 			# receive zip archive
-			logger.info('NICKJ0')
 			zip_path = './data.zip'
 			with open(zip_path, 'wb') as h:
-				logger.info('NICKJ2')
 				for data in iter(lambda: conn.recv(BUFFER_SIZE), b''):
-					logger.info('NICKJ3')
 					h.write(data)
-					logger.info('NICKJ4')
 
 			# unzip
 			with ZipFile(zip_path, 'r') as zip_file:
 				team_info = json.loads(zip_file.read('team_info.json').decode())
 				zip_file.extractall(temp_dir)
 
-		except:
+		except Exception as e:
+			logger.info(str(e))
 			send_message(conn, "ERROR: Unable to read data.", terminate=True)
 			continue
 
@@ -444,16 +434,12 @@ def main():
 		# accept connection and add to queue
 		logging.info('Waiting to accept requests')
 		conn, addr = server.accept()
-		print('MORE NICKJ DEBUGGING')
-		print(str(conn.fileno) + '\n')
-		if True:
-		#try:
-			#queue.put((forking_dumps(conn), addr[0]), block=True, timeout=2)
-			queue.put((reduce_handle(conn.fileno), addr[0]), block=True, timeout=2)
+		try:
+			queue.put((reduce_handle(conn.fileno()), addr[0]), block=True, timeout=2)
 			logger.info('Queuing submission from {0} ({1})...'.format(addr[0], queue.qsize()))
 			send_message(conn, 'Submission queued...', log=False)
-		#except:
-		#	send_message(conn, 'Server busy, please try again later...', terminate=True)
+		except:
+			send_message(conn, 'Server busy, please try again later...', terminate=True)
 
 
 if __name__ == '__main__':
