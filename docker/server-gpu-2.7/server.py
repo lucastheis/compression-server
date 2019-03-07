@@ -8,6 +8,10 @@ from multiprocessing import Queue, Pool
 from sqltools import *
 from tempfile import mkdtemp
 from zipfile import ZipFile
+from multiprocessing.reduction import ForkingPickler
+from multiprocessing.reduction import reduce_handle
+from multiprocessing.reduction import rebuild_handle
+import StringIO
 import json
 import logging
 import numpy as np
@@ -35,7 +39,7 @@ os.chdir(WORK_DIR)
 
 PORT = int(os.environ.get('EVAL_PORT', 20000))
 BUFFER_SIZE = 4096
-NUM_WORKERS = int(os.environ.get('EVAL_NUM_WORKERS', 4))  # number of workers evaluating submissions
+NUM_WORKERS = int(os.environ.get('EVAL_NUM_WORKERS', 1))  # number of workers evaluating submissions
 QUEUE_SIZE = int(os.environ.get('EVAL_QUEUE_SIZE', 2))  # number of additional submissions in queue
 TERMINATE = chr(0).encode()
 MAX_SUBMISSIONS_PER_DAY = 5
@@ -73,7 +77,7 @@ DECODE_CMD = [
 	'-v', '{temp_dir}:{temp_dir}',
 	'-w', '{temp_dir}',
 	'--entrypoint', './decode',
-	'gcr.io/{project_id}/server'.format(project_id=os.environ.get('PROJECT_ID'))]
+	'gcr.io/{project_id}/server-2.7-gpu'.format(project_id=os.environ.get('PROJECT_ID'))]
 
 
 def format_results(results):
@@ -139,15 +143,23 @@ def send_message(conn, message, log=True, terminate=False, newline=True):
 			conn.send(TERMINATE)
 			conn.close()
 	except:
+		logging.info('Error in sending message')
 		pass
 
 
+def forking_dumps(obj):
+    buf = StringIO.StringIO()
+    ForkingPickler(buf).dump(obj)
+    return buf.getvalue()
+  
+    
 def handle(queue):
 	logger = logging.getLogger(__name__)
 
 	while True:
-		conn, addr = queue.get()
-
+		(fd, addr) = queue.get(True, None)
+		conn = socket.fromfd(fd, socket.AF_INET, socket.SOCK_STREAM)
+		
 		logger.info('Connecting to database...')
 
 		db = db_connect()
@@ -160,12 +172,18 @@ def handle(queue):
 
 		logger.info('Extracting files in {0}'.format(temp_dir))
 
+		logger.info(str(addr))
+		logger.info(str(conn))
 		try:
 			# receive zip archive
+			logger.info('NICKJ0')
 			zip_path = './data.zip'
-			with open(zip_path, 'wb') as handle:
+			with open(zip_path, 'wb') as h:
+				logger.info('NICKJ2')
 				for data in iter(lambda: conn.recv(BUFFER_SIZE), b''):
-					handle.write(data)
+					logger.info('NICKJ3')
+					h.write(data)
+					logger.info('NICKJ4')
 
 			# unzip
 			with ZipFile(zip_path, 'r') as zip_file:
@@ -406,8 +424,11 @@ def main():
 	db_setup(DB_URI)
 
 	server = socket.socket()
+        logging.info('Binding on port {0}'.format(PORT))
 	server.bind(('', PORT))
-	server.listen()
+
+	# Backlog of 5
+	server.listen(5)
 
 	logger.info('Listening...')
 
@@ -418,17 +439,21 @@ def main():
 	pool = Pool(NUM_WORKERS, handle, (queue,))
 
 	threads = []
-
+	next_idx = 0
 	while True:
 		# accept connection and add to queue
+		logging.info('Waiting to accept requests')
 		conn, addr = server.accept()
-
-		try:
-			queue.put((conn, addr[0]), block=True, timeout=2)
+		print('MORE NICKJ DEBUGGING')
+		print(str(conn.fileno) + '\n')
+		if True:
+		#try:
+			#queue.put((forking_dumps(conn), addr[0]), block=True, timeout=2)
+			queue.put((reduce_handle(conn.fileno), addr[0]), block=True, timeout=2)
 			logger.info('Queuing submission from {0} ({1})...'.format(addr[0], queue.qsize()))
 			send_message(conn, 'Submission queued...', log=False)
-		except:
-			send_message(conn, 'Server busy, please try again later...', terminate=True)
+		#except:
+		#	send_message(conn, 'Server busy, please try again later...', terminate=True)
 
 
 if __name__ == '__main__':

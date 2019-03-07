@@ -15,6 +15,9 @@ PORT = int(os.environ.get('EVAL_PORT', 20000))
 BUFFER_SIZE = 4096
 TERMINATE = chr(0).encode()
 
+# Hard coded from Google Cloud portal.
+GPU_HOST = '35.190.140.162'
+
 
 def main(args):
 	if not args.name.replace(' ', '').isalnum():
@@ -37,11 +40,17 @@ def main(args):
 		print('The password should be at least 8 characters long.')
 		return 1
 
-	print('Connecting ({0}:{1})...'.format(HOST, PORT))
+	connection_host_ip = HOST
+	if args.use_gpu:
+		print('Using GPU server')
+		connection_host_ip = GPU_HOST
+	else:
+		print('Using CPU server')
+	print('Connecting ({0}:{1})...'.format(connection_host_ip, PORT))
 
 	# connect to evaluation server
 	s = socket.socket()
-	s.connect((HOST, PORT))
+	s.connect((connection_host_ip, PORT))
 
 	with TemporaryFile() as temp_file:
 		team_info = {
@@ -93,5 +102,6 @@ if __name__ == '__main__':
 		help='An email address to reach your team')
 	parser.add_argument('--task', '-t', choices=['lowrate', 'transparent'], default='lowrate',
 		help='Chooses one of two tasks (lowrate, transparent)')
-
+	parser.add_argument('--use_gpu', dest='use_gpu', action='store_true', default=False,
+                help='True if you want to select a GPU server.')
 	sys.exit(main(parser.parse_args()))
