@@ -75,16 +75,33 @@ Unfortunately, this is going to be the most manual process. You'll need to to st
 an n8-machine, attach a P100 and give it a 100 GB SSD running Google Drawfork 16.04 LTS. You'll need to assign a Static IP and add that
 IP to the SQL access in the cloud console as well.
 
-At this time CUDA 9.0 is the only version that is supported by all the frameworks and this Ubuntu versin, so go ahead and install the drivers as listed here:
+At this time CUDA 9.0 is the only version that is supported by all the frameworks and this Ubuntu version, so go ahead and install the drivers as listed here:
 https://cloud.google.com/compute/docs/gpus/add-gpus#install-driver-script
 
 After that, install NVIDIA-Docker: https://github.com/NVIDIA/nvidia-docker
 
 Set up a locally mapped directory
-${DISK_NAME}=gpu-disk0
-Create the local directory: sudo mkdir -p /mnt/disks/gce-containers-mounts/gce-persistent-disks/nickj-gpu-test-disk/${DISK_NAME}
+export DISK_NAME=gpu-disk0
+
+Create the local directory:
+sudo mkdir -p /mnt/disks/gce-containers-mounts/gce-persistent-disks/nickj-gpu-test-disk/${DISK_NAME}
 
 You should be able to pull down the docker and start the server manually:
-sudo docker pull gcr.io/clic-215616/server-2.7-gpu:latest
-
-sudo nvidia-docker run --runtime=nvidia --restart=always -ti --network=host -e MEMORY_LIMIT=12g -e DISK=nickj-gpu-test-disk -e DB_URI=mysql+pymysql://root:kwNGgwwNFkNyBFxp@35.229.121.97:3306/clic2019 -e EVAL_NUM_WORKERS=1 -e DEBUG=1 -e EVAL_PORT=20000 -e PROJECT_ID=clic-215616 -e IMAGE_BUCKET=clic2019_images_valid -v /var/run/docker.sock:/var/run/docker.sock --privileged -v=/mnt/disks/gce-containers-mounts/gce-persistent-disks/{DISK_NAME}:/mnt/disks/gce-containers-mounts/gce-persistent-disks/${DISK_NAME} gcr.io/clic-215616/server-2.7-gpu:latest 
+sudo docker pull gcr.io/clic-215616/server:gpu
+sudo nvidia-docker run \
+--runtime=nvidia \
+--restart=always \
+--network=host \
+-ti \
+-e MEMORY_LIMIT=12g \
+-e DISK=nickj-gpu-test-disk \
+-e DB_URI=mysql+pymysql://root:kwNGgwwNFkNyBFxp@35.229.121.97:3306/clic2019 \
+-e EVAL_NUM_WORKERS=1 \
+-e DEBUG=1 \
+-e EVAL_PORT=20000 \
+-e PROJECT_ID=clic-215616 \
+-e IMAGE_BUCKET=clic2019_images_valid \
+-v /var/run/docker.sock:/var/run/docker.sock \
+--privileged \
+-v /mnt/disks/gce-containers-mounts/gce-persistent-disks:/mnt/disks/gce-containers-mounts/gce-persistent-disks \
+gcr.io/clic-215616/server:gpu

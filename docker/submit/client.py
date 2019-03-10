@@ -11,12 +11,10 @@ import socket
 import sys
 
 HOST = os.environ.get('EVAL_SERVER', 'eval.compression.cc')
+GPU_HOST = os.environ.get('EVAL_SERVER_GPU', 'eval-gpu0.compression.cc')
 PORT = int(os.environ.get('EVAL_PORT', 20000))
 BUFFER_SIZE = 4096
 TERMINATE = chr(0).encode()
-
-# Hard coded from Google Cloud portal.
-GPU_HOST = '35.190.140.162'
 
 
 def main(args):
@@ -42,10 +40,10 @@ def main(args):
 
 	connection_host_ip = HOST
 	if args.use_gpu:
-		print('Using GPU server')
+		print('Using GPU server...')
 		connection_host_ip = GPU_HOST
 	else:
-		print('Using CPU server')
+		print('Using CPU server...')
 	print('Connecting ({0}:{1})...'.format(connection_host_ip, PORT))
 
 	# connect to evaluation server

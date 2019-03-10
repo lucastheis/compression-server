@@ -73,7 +73,7 @@ DECODE_CMD = [
 	'-v', '{temp_dir}:{temp_dir}',
 	'-w', '{temp_dir}',
 	'--entrypoint', './decode',
-	'gcr.io/{project_id}/server'.format(project_id=os.environ.get('PROJECT_ID'))]
+	'gcr.io/{project_id}/server:cpu'.format(project_id=os.environ.get('PROJECT_ID'))]
 
 
 def format_results(results):

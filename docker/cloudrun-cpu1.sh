@@ -1,11 +1,11 @@
 #!/bin/sh
 
-SERVER_NAME="server-cpu0"
+SERVER_NAME="server-cpu1"
 PROJECT_ID=$(gcloud config list --format 'value(core.project)' 2>/dev/null)
 SERVICE_ACCOUNT="clic2019@clic-215616.iam.gserviceaccount.com"
-EXTERNAL_ADDRESS="35.190.138.93"
-DISK="clic2019-cpu0"
-ZONE="us-east1-b"
+EXTERNAL_ADDRESS="35.240.237.88"
+DISK="clic2019-cpu1"
+ZONE="asia-southeast1-b"
 EVAL_PORT=20000
 EVAL_NUM_WORKERS=4  # number of jobs run in parallel
 IMAGE_BUCKET="clic2019_images_valid"

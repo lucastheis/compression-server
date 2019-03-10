@@ -1,28 +1,34 @@
 steps:
 - name: 'gcr.io/cloud-builders/docker'
-  args: ['pull', 'gcr.io/$PROJECT_ID/compression:latest']
+  args: ['pull', 'gcr.io/$PROJECT_ID/compression:cpu']
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['pull', 'gcr.io/$PROJECT_ID/compression:gpu']
 - name: 'gcr.io/cloud-builders/docker'
   args: [
     'build',
-    '--cache-from', 'gcr.io/$PROJECT_ID/compression:latest',
+    '--cache-from', 'gcr.io/$PROJECT_ID/compression:cpu',
     '-t', 'gcr.io/$PROJECT_ID/compression:latest',
+    '-t', 'gcr.io/$PROJECT_ID/compression:cpu',
     'compression' ]
+- name: 'gcr.io/cloud-builders/docker'
+  args: [
+    'build',
+    '--cache-from', 'gcr.io/$PROJECT_ID/compression:gpu',
+    '-t', 'gcr.io/$PROJECT_ID/compression:gpu',
+    'compression-gpu-2.7' ]
 - name: 'gcr.io/cloud-builders/docker'
   args: [
     'build',
     '--build-arg', 'PROJECT_ID=$PROJECT_ID',
     '-t', 'gcr.io/$PROJECT_ID/server:latest',
+    '-t', 'gcr.io/$PROJECT_ID/server:cpu',
     'server' ]
-- name: 'gcr.io/cloud-builders/docker'
-  args: ['push', 'gcr.io/$PROJECT_ID/server:latest']
 - name: 'gcr.io/cloud-builders/docker'
   args: [
     'build',
     '--build-arg', 'PROJECT_ID=$PROJECT_ID',
-    '-t', 'gcr.io/$PROJECT_ID/server-2.7-gpu:latest',
+    '-t', 'gcr.io/$PROJECT_ID/server:gpu',
     'server-gpu-2.7' ]
-- name: 'gcr.io/cloud-builders/docker'
-  args: ['push', 'gcr.io/$PROJECT_ID/server-2.7-gpu:latest']
 - name: 'gcr.io/cloud-builders/docker'
   args: [
     'build',
@@ -30,20 +36,19 @@ steps:
     '-t', 'gcr.io/$PROJECT_ID/submit:latest',
     'submit' ]
 - name: 'gcr.io/cloud-builders/docker'
-  args: ['push', 'gcr.io/$PROJECT_ID/submit:latest']
-- name: 'gcr.io/cloud-builders/docker'
   args: [
     'build',
     '--build-arg', 'PROJECT_ID=$PROJECT_ID',
     '-t', 'gcr.io/$PROJECT_ID/results:latest',
     'results' ]
-- name: 'gcr.io/cloud-builders/docker'
-  args: ['push', 'gcr.io/$PROJECT_ID/results:latest']
 options:
   machineType: 'N1_HIGHCPU_32'
 images:
-  - 'gcr.io/$PROJECT_ID/compression'
-  - 'gcr.io/$PROJECT_ID/server'
+  - 'gcr.io/$PROJECT_ID/compression:latest'
+  - 'gcr.io/$PROJECT_ID/compression:cpu'
+  - 'gcr.io/$PROJECT_ID/compression:gpu'
+  - 'gcr.io/$PROJECT_ID/server:latest'
+  - 'gcr.io/$PROJECT_ID/server:cpu'
+  - 'gcr.io/$PROJECT_ID/server:gpu'
   - 'gcr.io/$PROJECT_ID/submit'
   - 'gcr.io/$PROJECT_ID/results'
-  - 'gcr.io/$PROJECT_ID/server-2.7-gpu'

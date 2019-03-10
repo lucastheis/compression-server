@@ -69,6 +69,7 @@ if SUBMISSIONS_BUCKET:
 LOGS_PATH = os.path.join(os.getcwd(), 'logs')
 DECODE_CMD = [
 	'docker', 'run',
+	'--runtime', 'nvidia',
 	'--rm',
 	'--memory', MEMORY_LIMIT,
 	'--memory-swap', '16g',
@@ -77,7 +78,7 @@ DECODE_CMD = [
 	'-v', '{temp_dir}:{temp_dir}',
 	'-w', '{temp_dir}',
 	'--entrypoint', './decode',
-	'gcr.io/{project_id}/server-2.7-gpu'.format(project_id=os.environ.get('PROJECT_ID'))]
+	'gcr.io/{project_id}/server:gpu'.format(project_id=os.environ.get('PROJECT_ID'))]
 
 
 def format_results(results):
