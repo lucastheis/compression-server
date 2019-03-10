@@ -19,6 +19,14 @@ steps:
   args: [
     'build',
     '--build-arg', 'PROJECT_ID=$PROJECT_ID',
+    '-t', 'gcr.io/$PROJECT_ID/server-2.7-gpu:latest',
+    'server-gpu-2.7' ]
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['push', 'gcr.io/$PROJECT_ID/server-2.7-gpu:latest']
+- name: 'gcr.io/cloud-builders/docker'
+  args: [
+    'build',
+    '--build-arg', 'PROJECT_ID=$PROJECT_ID',
     '-t', 'gcr.io/$PROJECT_ID/submit:latest',
     'submit' ]
 - name: 'gcr.io/cloud-builders/docker'
@@ -32,9 +40,10 @@ steps:
 - name: 'gcr.io/cloud-builders/docker'
   args: ['push', 'gcr.io/$PROJECT_ID/results:latest']
 options:
-  machineType: 'N1_HIGHCPU_8'
+  machineType: 'N1_HIGHCPU_32'
 images:
   - 'gcr.io/$PROJECT_ID/compression'
   - 'gcr.io/$PROJECT_ID/server'
   - 'gcr.io/$PROJECT_ID/submit'
   - 'gcr.io/$PROJECT_ID/results'
+  - 'gcr.io/$PROJECT_ID/server-2.7-gpu'
