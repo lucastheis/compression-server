@@ -35,7 +35,8 @@ RUN pip2 install https://storage.googleapis.com/tensorflow/linux/gpu/tensorflow_
 
 RUN pip2 install git+git://github.com/Lasagne/Lasagne.git@20efd95de558a613a138f3e3e6cd690008f48ca6
 
-RUN pip2 install http://download.pytorch.org/whl/cu90/torch-0.4.0-cp27-cp27mu-linux_x86_64.whl
+#RUN pip2 install http://download.pytorch.org/whl/cu90/torch-0.4.0-cp27-cp27mu-linux_x86_64.whl
+RUN pip2 install http://download.pytorch.org/whl/cu90/torch-1.0.1.post2-cp27-cp27mu-linux_x86_64.whl
 RUN pip2 install torchvision
 
 ENV PYTHONUNBUFFERED=1
