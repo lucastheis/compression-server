@@ -9,6 +9,7 @@ ZONE="asia-southeast1-b"
 EVAL_PORT=20000
 EVAL_NUM_WORKERS=4  # number of jobs run in parallel
 IMAGE_BUCKET="clic2019_images_valid"
+PHASE="valid"
 MEMORY_LIMIT="12g"
 DB_INSTANCE="clic2019"
 DB_NAME="clic2019"
@@ -25,7 +26,7 @@ gcloud beta compute instances create-with-container ${SERVER_NAME} \
   --boot-disk-type="pd-ssd" \
   --zone="${ZONE}" \
   --service-account="${SERVICE_ACCOUNT}" \
-  --scopes="storage-full" \
+  --scopes="storage-full,logging-write" \
   --container-image="gcr.io/${PROJECT_ID}/server:cpu" \
   --address="${EXTERNAL_ADDRESS}" \
   --container-env="PHASE=${PHASE},IMAGE_BUCKET=${IMAGE_BUCKET},EVAL_PORT=${EVAL_PORT},EVAL_NUM_WORKERS=${EVAL_NUM_WORKERS},PROJECT_ID=${PROJECT_ID},DB_URI=${DB_URI},MEMORY_LIMIT=${MEMORY_LIMIT},DISK=${DISK},DEBUG=1" \

@@ -1,16 +1,17 @@
 #!/bin/sh
 
-SERVER_NAME="server-cpu0"
+SERVER_NAME="server-cpu0-test"
 PROJECT_ID=$(gcloud config list --format 'value(core.project)' 2>/dev/null)
 SERVICE_ACCOUNT="clic2019@clic-215616.iam.gserviceaccount.com"
-EXTERNAL_ADDRESS="35.190.138.93"
-DISK="clic2019-cpu0"
+EXTERNAL_ADDRESS="35.237.102.5"
+DISK="clic2019-cpu0-test"
 ZONE="us-east1-b"
 EVAL_PORT=20000
 EVAL_NUM_WORKERS=4  # number of jobs run in parallel
-IMAGE_BUCKET="clic2019_images_valid"
-PHASE="valid"
-MEMORY_LIMIT="12g"
+IMAGE_BUCKET="clic2019_images_test"
+PHASE="test"
+MEMORY_LIMIT="16g"  # extra memory
+DECODE_TIMEOUT=604800   # 1 week
 DB_INSTANCE="clic2019"
 DB_NAME="clic2019"
 DB_IP=$(gcloud sql instances describe ${DB_INSTANCE} | grep "ipAddress:" | cut -d ' ' -f 3)
@@ -29,7 +30,7 @@ gcloud beta compute instances create-with-container ${SERVER_NAME} \
   --scopes="storage-full,logging-write" \
   --container-image="gcr.io/${PROJECT_ID}/server:cpu" \
   --address="${EXTERNAL_ADDRESS}" \
-  --container-env="PHASE=${PHASE},IMAGE_BUCKET=${IMAGE_BUCKET},EVAL_PORT=${EVAL_PORT},EVAL_NUM_WORKERS=${EVAL_NUM_WORKERS},PROJECT_ID=${PROJECT_ID},DB_URI=${DB_URI},MEMORY_LIMIT=${MEMORY_LIMIT},DISK=${DISK},DEBUG=1" \
+  --container-env="PHASE=${PHASE},IMAGE_BUCKET=${IMAGE_BUCKET},EVAL_PORT=${EVAL_PORT},EVAL_NUM_WORKERS=${EVAL_NUM_WORKERS},PROJECT_ID=${PROJECT_ID},DB_URI=${DB_URI},DECODE_TIMEOUT=${DECODE_TIMEOUT},MEMORY_LIMIT=${MEMORY_LIMIT},DISK=${DISK},DEBUG=1" \
   --container-privileged \
   --container-restart-policy="never" \
   --disk="name=${DISK}" \

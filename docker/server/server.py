@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 from PIL import Image
 from hashlib import sha256
@@ -45,7 +45,7 @@ IMAGE_DIR = '/images'
 DEBUG = bool(os.environ.get('DEBUG', False))
 TRANSPARENT_PSNR = 40.
 TRANSPARENT_MSSSIM = 0.993
-DECODE_TIMEOUT = 10 * 3600  # seconds
+DECODE_TIMEOUT = int(os.environ.get('DECODE_TIMEOUT', 10 * 3600))  # seconds
 
 if IMAGE_BUCKET:
 	os.system('mkdir {dir}'.format(dir=IMAGE_DIR))
@@ -226,7 +226,7 @@ def handle(queue):
 			decoder_size = os.stat(team_info['decoder']).st_size  # bytes
 			decoder_hash = file_hash(team_info['decoder'])
 
-			if PHASE == 'test' and db_check_exists(db, decoder_hash):
+			if PHASE == 'test' and not db_check_exists(db, decoder_hash):
 				clean_up('ERROR: Decoder unknown.')
 				continue
 
