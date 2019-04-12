@@ -102,23 +102,31 @@ def db_count_recent_submissions(db, name):
 def db_get_results(db, task, phase):
 	q = db.query(Submission).filter(Submission.phase == phase, Submission.task == task)
 
-	results = defaultdict(lambda: {'psnr': -np.inf, 'images_size': np.inf, 'datetime': 0})
+	results = defaultdict(lambda: {'psnr': -np.inf, 'images_size': np.inf, 'datetime': datetime.min})
 
 	for row in q.all():
 		replace = False
-		if phase == 'test' and row.timestamp > results[row.name]['timestamp']:
+		if phase == 'test' and row.timestamp > results[row.name]['datetime']:
+			# in test phase, keep latest entry
 			replace = True
 		elif task != 'transparent' and row.psnr > results[row.name]['psnr']:
+			# in low-rate track, keep entry with best PSNR
 			replace = True
 		elif task == 'transparent' and row.images_size < results[row.name]['images_size']:
+			# in transparent track, keep entry with best MS-SSIM
 			replace = True
 
 		if replace:
 			results[row.name] = {
-				'datetime': str(row.timestamp),
+				'datetime': row.timestamp,
 				'psnr': row.psnr,
 				'msssim': row.msssim,
 				'images_size': row.images_size,
 				'decoding_time': row.decoding_time,
 				'decoder_size': row.decoder_size}
+
+	# convert timestamps to string representation of date
+	for row in results:
+		results[row]['datetime'] = str(results[row]['datetime'])
+
 	return dict(results)
