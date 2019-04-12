@@ -6,6 +6,7 @@ MAINTAINER Lucas Theis
 ADD "./key.pem" ${HOME}
 ADD "./cert.pem" ${HOME}
 ADD "./results_server.py" ${HOME}
+ADD "./rate_limit.py" ${HOME}
 
 RUN chmod +x ./results_server.py
 
