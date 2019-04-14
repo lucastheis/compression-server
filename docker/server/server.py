@@ -357,8 +357,8 @@ def handle(queue):
 				for image_file in IMAGE_FILES:
 					image_file_decoded = os.path.basename(image_file)
 					os.system('mv "{src}" "{target}"'.format(
-						image_file_decoded,
-						os.path.join(image_dir, image_file_decoded)))
+						src=image_file_decoded,
+						target=os.path.join(image_dir, image_file_decoded)))
 			else:
 				send_message(conn, 'Submission successful...', log=False)
 				send_message(conn, '', log=False)
