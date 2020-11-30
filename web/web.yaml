@@ -1,15 +1,15 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: clic
+  name: {{ LABEL }}
   labels:
-    app: clic
+    app: {{ LABEL }}
 spec:
   replicas: 2
   template:
     metadata:
       labels:
-        app: clic
+        app: {{ LABEL }}
     spec:
       containers:
       - name: clic-app
@@ -38,20 +38,20 @@ spec:
           - name: SECRET_KEY
             valueFrom:
               secretKeyRef:
-                name: django-clic2020
+                name: django-{{ LABEL }}
                 key: secret_key
           - name: SENTRY_DSN
             valueFrom:
               secretKeyRef:
-                name: sentry-clic2020
+                name: sentry-{{ LABEL }}
                 key: dsn
           - name: GOOGLE_APPLICATION_CREDENTIALS
             value: "/var/run/secret/cloud.google.com/service-account.json"
         envFrom:
           - secretRef:
-              name: cloudsql-clic2020
+              name: cloudsql-{{ LABEL }}
           - secretRef:
-              name: buckets-clic2020
+              name: buckets-{{ LABEL }}
         volumeMounts:
           - name: clic-sa-key-volume
             mountPath: "/var/run/secret/cloud.google.com"
@@ -96,16 +96,16 @@ spec:
           emptyDir:
   selector:
     matchLabels:
-      app: clic
+      app: {{ LABEL }}
 
 ---
 
 apiVersion: v1
 kind: Service
 metadata:
-  name: clic
+  name: {{ LABEL }}
   labels:
-    app: clic
+    app: {{ LABEL }}
 spec:
   type: LoadBalancer
   loadBalancerIP: "{{ IP_ADDRESS }}"
@@ -113,4 +113,4 @@ spec:
   - port: 80
     targetPort: 8080
   selector:
-    app: clic
+    app: {{ LABEL }}

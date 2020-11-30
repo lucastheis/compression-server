@@ -1,5 +1,7 @@
 #!/bin/bash
 
+LABEL=clic2020
+
 # collect and upload static files
 docker run --rm -ti \
 	-w "$(pwd)/web" \
@@ -16,4 +18,4 @@ IP_ADDRESS=$(gcloud compute addresses describe clic2020-web --region us-west1 --
 DIGEST=$(gcloud container images describe --format 'get(image_summary.digest)' gcr.io/clic-215616/web)
 
 # start webserver
-cat web/web.yaml | sed "s/{{ IP_ADDRESS }}/${IP_ADDRESS}/g" | sed "s/{{ DIGEST }}/${DIGEST}/g" | kubectl apply -f -
+cat web/web.yaml | sed "s/{{ LABEL }}/${LABEL}/g" | sed "s/{{ IP_ADDRESS }}/${IP_ADDRESS}/g" | sed "s/{{ DIGEST }}/${DIGEST}/g" | kubectl apply -f -
