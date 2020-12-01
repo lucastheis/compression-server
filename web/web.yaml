@@ -38,20 +38,20 @@ spec:
           - name: SECRET_KEY
             valueFrom:
               secretKeyRef:
-                name: django-clic2020
+                name: django-{{ LABEL }}
                 key: secret_key
           - name: SENTRY_DSN
             valueFrom:
               secretKeyRef:
-                name: sentry-clic2020
+                name: sentry-{{ LABEL }}
                 key: dsn
           - name: GOOGLE_APPLICATION_CREDENTIALS
             value: "/var/run/secret/cloud.google.com/service-account.json"
         envFrom:
           - secretRef:
-              name: cloudsql-clic2020
+              name: cloudsql-{{ LABEL }}
           - secretRef:
-              name: buckets-clic2020
+              name: buckets-{{ LABEL }}
         volumeMounts:
           - name: clic-sa-key-volume
             mountPath: "/var/run/secret/cloud.google.com"
@@ -74,7 +74,7 @@ spec:
             value: "/var/run/secret/cloud.google.com/service-account.json"
         envFrom:
           - secretRef:
-              name: cloudsql
+              name: cloudsql-{{ LABEL }}
         volumeMounts:
           - name: clic-sa-key-volume
             mountPath: "/var/run/secret/cloud.google.com"
