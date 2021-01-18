@@ -15,7 +15,7 @@ gcloud compute addresses create clic2020-web --region us-west1 2> /dev/null
 IP_ADDRESS=$(gcloud compute addresses describe clic2020-web --region us-west1 --format 'value(address)')
 
 # get sha256 of latest image
-DIGEST=$(gcloud container images describe --format 'get(image_summary.digest)' gcr.io/clic-215616/web)
+DIGEST=$(gcloud container images describe --format 'get(image_summary.digest)' gcr.io/clic-215616/web-clic2020)
 
 # start webserver
 cat web/web.yaml | sed "s/{{ LABEL }}/${LABEL}/g" | sed "s/{{ IP_ADDRESS }}/${IP_ADDRESS}/g" | sed "s/{{ DIGEST }}/${DIGEST}/g" | kubectl apply -f -

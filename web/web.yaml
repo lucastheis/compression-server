@@ -13,7 +13,7 @@ spec:
     spec:
       containers:
       - name: clic-app
-        image: gcr.io/clic-215616/web@{{ DIGEST }}
+        image: gcr.io/clic-215616/web-clic2020@{{ DIGEST }}
         imagePullPolicy: Always
         resources:
           requests:
